@@ -43,6 +43,8 @@ if (mode === 'prepare') {
       + `\n## Build evidence\n\nSource: ${process.env.GITHUB_SHA}\n\nUI checks: ${process.env.QUALITY_RESULT}; desktop installers: ${process.env.DESKTOP_RESULT}.\n\nWorkflow: https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\n`;
     writeFileSync('release-build-notes.md', notes);
     gh(['release', 'edit', tag, '--title', `My Tools ${version} · ${complete ? 'ready to install' : 'incomplete build'}`, '--notes-file', 'release-build-notes.md']);
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### My Tools ${version}\n\n[Open the private draft and download installers](${release.url})\n\nUI checks: **${process.env.QUALITY_RESULT}** · Desktop packages: **${process.env.DESKTOP_RESULT}**\n`);
+    // GitHub can replace a draft's temporary URL when its title or notes change.
+    const releasesUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases`;
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### My Tools ${version}\n\n[Open private releases and download this build](${releasesUrl})\n\nBuild tag: \`${tag}\`\n\nUI checks: **${process.env.QUALITY_RESULT}** · Desktop packages: **${process.env.DESKTOP_RESULT}**\n`);
   } else throw new Error('Unknown release-assets operation');
 }

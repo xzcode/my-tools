@@ -32,6 +32,8 @@ Linux 安装包使用 Ubuntu 24.04 runner 构建。这里的 `.deb` 格式不代
 3. 在 Assets 下载目标平台安装包与 `SHA256SUMS-<target>.txt`。工作台和快捷窗口截图位于同一处。
 4. 校验文件后安装。常见操作见 [日常使用指南](USAGE.md)。
 
+草稿的临时 `untagged-...` URL 可能在标题或说明更新后改变。收藏仓库 Releases 列表入口，并使用构建标签或运行 ID 定位；工作流后续摘要也使用这个稳定入口。
+
 本项目曾在测试通过后遇到账户 Actions Artifacts 存储配额阻止上传，随后改为 Release assets 分发。Release 附件与 Actions artifact 的存储机制不同；它们仍遵循 GitHub 的服务限制。GitHub 当前说明每个 Release 最多 1000 个附件，单文件必须小于 2 GiB，适合本项目的安装包和截图。依据：[GitHub Releases storage and bandwidth quotas](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas)、[GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)。
 
 此调整不删除其他项目的产物，也不代替 Actions runner 的构建额度。构建日志与任务结果仍在 Actions 页面查看。

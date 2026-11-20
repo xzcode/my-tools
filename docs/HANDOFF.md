@@ -18,7 +18,7 @@
 
 - 57 个核心行为/后台任务测试通过，包括长整数、中文/二进制 Base64、SHA/HMAC 向量、SQL 引号、CSV、JSON Diff、输出放大、Worker 超时与取消。
 - TypeScript 检查、Vite 生产构建通过。
-- macOS、Windows、Linux 的 Rust 原生文件/设置测试与生产安装包构建、上传步骤均通过。本地 Linux 另已完成 `cargo check`、`cargo check --features updater`，可选更新功能编译通过。
+- macOS、Windows、Linux 各自执行的 9 项 Rust 原生文件/设置测试，以及生产安装包构建、上传步骤均通过。本地 Linux 另已完成 `cargo check`、`cargo check --features updater`，可选更新功能编译通过。
 - GitHub 运行 [44697286630](https://github.com/xzcode/my-tools/actions/runs/44697286630) 的 57 项单元/后台任务测试、10 项真实 Chromium 操作验收全部通过。界面验收耗时 16.5 秒，覆盖长整数 JSON、中文/二进制 Base64 往返、快捷搜索、敏感输入不持久化、正则超时恢复、Diff、批量部分失败隔离与本地 cURL 解析。
 - 首轮运行 [44696636512](https://github.com/xzcode/my-tools/actions/runs/44696636512) 曾在全部界面测试通过后，因 GitHub Actions artifact storage quota 已满而无法上传截图，导致依赖的安装包作业跳过。已改为私有草稿 Release 保存安装包、截图与校验文件；新运行的三平台安装包均已实际上传。
 - 升级开发测试依赖到 Vitest 5.1.1 后重新通过 57 项测试与生产构建；npm audit 当前报告 0 个已知漏洞。
@@ -27,9 +27,11 @@
 
 ## 本次交付
 
-安装包对应源提交：[`15ef5ae814a002bb082bfeb21d3752d92c0919f0`](https://github.com/xzcode/my-tools/commit/15ef5ae814a002bb082bfeb21d3752d92c0919f0)。后续交接文档提交不改变这些安装包的源代码。
+安装包对应源提交：[`15ef5ae814a002bb082bfeb21d3752d92c0919f0`](https://github.com/xzcode/my-tools/commit/15ef5ae814a002bb082bfeb21d3752d92c0919f0)。后续交接文档与发布导航修正不改变这些安装包中的应用代码。
 
-下载：[My Tools 0.1.0 私有草稿 Release](https://github.com/xzcode/my-tools/releases/tag/untagged-3595b823972abab4aed3)。使用可管理仓库的 GitHub 账号登录后，在 Assets 下载。
+下载：[仓库 Releases](https://github.com/xzcode/my-tools/releases)，选择 **My Tools 0.1.0 · ready to install**，构建标签为 `build-v0.1.0-44697286630-1`。使用可管理仓库的 GitHub 账号登录后，在 Assets 下载。GitHub 编辑草稿后可能改变其临时 URL，因此这里使用稳定的列表入口与构建标签定位。
+
+本次 [完整工作流](https://github.com/xzcode/my-tools/actions/runs/44697286630) 已结束，结论为 **success**；质量检查、三平台打包和发布收尾均成功。
 
 | 平台 | 安装包附件 | 大小（字节） |
 | --- | --- | ---: |
