@@ -1,7 +1,34 @@
 # My Tools · M1–M5 与后续增量交接
 
-日期：2026-11-20（Asia/Kuala_Lumpur）。**当前版本：0.2.0**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-20（Asia/Kuala_Lumpur）。**当前版本：0.3.0**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
 
+
+
+## v0.3.0 · AES 简单/高级双模式
+
+原有 18 项工具和 v0.2.0 的 AES-256-GCM + PBKDF2 JSON 密文格式保留不变；AES 工具新增“高级模式 · 原始 Key / IV”。
+
+- 算法与 Key：原始 AES-128/192/256 字节密钥；GCM 或 CBC；Key 精确为 16/24/32 字节，支持 UTF-8、Hex、Base64 输入，不做补齐、截断或 PBKDF2。
+- IV：GCM 恰好 12 字节、CBC 恰好 16 字节，支持 UTF-8、Hex、Base64；UI 可一键用安全随机数生成新的 Hex IV，但需要用户保存和与密文配对。每次 GCM 加密使用同一 Key 时绝不可重复 IV。
+- 编码：明文 UTF-8/Hex/Base64，密文 Base64/Hex；GCM Tag 支持 96/104/112/120/128 bit，合并在密文末尾或单独 JSON ciphertext/tag 字段；可选 AAD。
+- CBC Padding：PKCS7（字节层对应 Java AES/CBC/PKCS5Padding）与 NoPadding（需 16 字节整数倍）。Web Crypto 强制 CBC PKCS7，因此 NoPadding 路径使用原生 AES-CBC 对齐前缀加密 / 合成尾部填充块来进行兼容，且与 NIST 测试向量和 Node.js 字节对照验证。
+- 风险边界：CBC 不提供完整性认证，不支持 ECB；高级 GCM 需要用户确保 IV 不复用。Key、IV、口令、正文不会持久化；复制到系统剪贴板或导出文件后由用户自行管理。旧版简单模式仍以密码派生 Key 的版本化 JSON 作为密文输入/输出。
+
+### 验证与安装包
+
+- 安装包源提交：[4c1e409f](https://github.com/xzcode/my-tools/commit/4c1e409f00d19bae2b5d2d5e6499b1d2fc58905f)。本交接文档提交在其后，未修改构建应用代码。
+- [Desktop builds #44716371232](https://github.com/xzcode/my-tools/actions/runs/44716371232)：最终结论 **success**，75 项 Vitest 单元/Worker 测试、13 项真实 Chromium UI 验收及 TypeScript / Vite 生产构建全部通过；Mac/Windows/Linux 的原生测试、优化构建和安装包上传均成功。
+- 私有草稿下载：[仓库 Releases](https://github.com/xzcode/my-tools/releases) → **My Tools 0.3.0 · ready to install**，构建标签为 build-v0.3.0-44716371232-1。GitHub 草稿临时 URL 可能变更，使用稳定 Releases 入口。
+  
+| 平台 | 实际上传附件 | 大小（字节） | SHA-256 |
+| --- | --- | ---: | --- |
+| Mac Apple Silicon | My.Tools_0.3.0_aarch64.dmg | 2,739,309 | c0c551bf893550c177fdbbc00a14186bf3b32fe275e2de650e7405f8cb4cf330 |
+| Windows x64 | My.Tools_0.3.0_x64-setup.exe | 2,181,573 | 9b9c615cba1eee4321066588dac9d43d03009a76353de20ed594c6ce3507d6d0 |
+| Linux x64（Ubuntu 24.04 构建） | My.Tools_0.3.0_amd64.deb | 3,229,476 | e0d9af634c05a42e4ae7e692641d3d6bd044d16e6256e0345ccd9c2db07799fd |
+
+同一私有草稿存有 3 份 SHA256SUMS 校验文件和浏览器界面截图。macOS 默认 ad-hoc 签名未经过 Apple Developer 公证，Windows 未配置商业签名；未在用户真实设备上手动安装验收，因此原生系统交互只声明 CI 原生单元测试和打包已通过。
+
+---
 
 ## v0.2.0 · AES 与强密码生成器
 
