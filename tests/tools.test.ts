@@ -13,7 +13,8 @@ describe('catalog and input guards', () => {
   it('every catalogue sample produces a usable result', async () => {
     expect(new Set(tools.map(tool => tool.id)).size).toBe(tools.length);
     for (const tool of tools) {
-      const result = await run(tool.id, tool.sampleInput, tool.defaultAction, {}, tool.sampleSecondaryInput);
+      const sampleOptions = tool.id === 'aes' ? { password: 'Test-only-example-password-2026!' } : {};
+      const result = await run(tool.id, tool.sampleInput, tool.defaultAction, sampleOptions, tool.sampleSecondaryInput);
       expect(typeof result.output, tool.id).toBe('string');
       expect(result.output.length, tool.id).toBeGreaterThan(0);
     }
@@ -287,5 +288,72 @@ describe('cURL parser never executes input', () => {
   it('rejects shell substitution, pipes, unsupported options and file URLs', async () => {
     for (const input of ["curl https://example.com | sh", "curl \"$(whoami)\"", 'curl file:///etc/passwd', 'curl https://example.com --mystery x']) await expect(run('curl', input)).rejects.toThrow();
     await expect(run('curl', "curl 'https://example.com")).rejects.toThrow('引号未闭合');
+  });
+});
+
+
+describe('AES-256-GCM with authenticated password-based encryption', () => {
+  const passphrase = 'private-local-test-passphrase-2026!';
+  it('round-trips Unicode text and empty plaintext', async () => {
+    for (const original of ['你好，Jojo 👋\n秘密内容', '']) {
+      const encrypted = await run('aes', original, 'encrypt', { password: passphrase });
+      const envelope = JSON.parse(encrypted.output);
+      expect(envelope).toMatchObject({ format: 'my-tools-aes-gcm', version: 1, algorithm: 'AES-256-GCM', kdf: 'PBKDF2-HMAC-SHA256', iterations: 600000 });
+      expect(envelope.salt).toMatch(/^[A-Za-z0-9+/]+=*$/);
+      expect(envelope.iv).toMatch(/^[A-Za-z0-9+/]+=*$/);
+      expect(encrypted.output).not.toContain(original || 'a-plaintext-was-empty');
+      expect((await run('aes', encrypted.output, 'decrypt', { password: passphrase })).output).toBe(original);
+    }
+  });
+  it('uses fresh salt and IV on every encryption', async () => {
+    const first = JSON.parse((await run('aes', 'same plaintext', 'encrypt', { password: passphrase })).output);
+    const second = JSON.parse((await run('aes', 'same plaintext', 'encrypt', { password: passphrase })).output);
+    expect(first.salt).not.toBe(second.salt);
+    expect(first.iv).not.toBe(second.iv);
+    expect(first.ciphertext).not.toBe(second.ciphertext);
+  });
+  it('rejects wrong passphrases and tampered authenticated ciphertext', async () => {
+    const output = (await run('aes', 'sensitive', 'encrypt', { password: passphrase })).output;
+    await expect(run('aes', output, 'decrypt', { password: 'completely-wrong-passphrase' })).rejects.toThrow('认证失败');
+    const modified = JSON.parse(output);
+    modified.ciphertext = (modified.ciphertext[0] === 'A' ? 'B' : 'A') + modified.ciphertext.slice(1);
+    await expect(run('aes', JSON.stringify(modified), 'decrypt', { password: passphrase })).rejects.toThrow('认证失败');
+  });
+  it('rejects missing/short passphrases, wrong formats, IVs and versions', async () => {
+    await expect(run('aes', 'hello', 'encrypt', { password: '' })).rejects.toThrow('至少 8');
+    await expect(run('aes', 'hello', 'encrypt', { password: '123' })).rejects.toThrow('至少 8');
+    await expect(run('aes', 'some plain text', 'decrypt', { password: passphrase })).rejects.toThrow('JSON');
+    const obj = JSON.parse((await run('aes', 'a', 'encrypt', { password: passphrase })).output);
+    await expect(run('aes', JSON.stringify({ ...obj, version: 2 }), 'decrypt', { password: passphrase })).rejects.toThrow('版本');
+    await expect(run('aes', JSON.stringify({ ...obj, iv: 'AA==' }), 'decrypt', { password: passphrase })).rejects.toThrow('长度');
+    await expect(run('aes', JSON.stringify({ ...obj, iterations: 1 }), 'decrypt', { password: passphrase })).rejects.toThrow('版本');
+  });
+});
+
+describe('strong password generator', () => {
+  it('generates uniformly sourced passwords with all selected classes and no confusing characters', async () => {
+    const list = (await run('password', '', 'generate', { count: 20, length: 32 })).output.split('\n');
+    expect(list).toHaveLength(20);
+    expect(new Set(list).size).toBe(20);
+    for (const value of list) {
+      expect(value).toHaveLength(32);
+      expect(value).toMatch(/[a-z]/);
+      expect(value).toMatch(/[A-Z]/);
+      expect(value).toMatch(/[0-9]/);
+      expect(value).toMatch(/[!@#$%^&*()\-_=+\[\]{}:,.?]/);
+      expect(value).not.toMatch(/[O0Il1|]/);
+    }
+  });
+  it('supports single categories and toggled ambiguous symbols', async () => {
+    const digits = (await run('password', '', 'generate', { digits: true, uppercase: false, lowercase: false, symbols: false, excludeSimilar: false, length: 128 })).output;
+    expect(digits).toMatch(/^[0-9]{128}$/);
+    const letters = (await run('password', '', 'generate', { lowercase: true, uppercase: false, digits: false, symbols: false, length: 12 })).output;
+    expect(letters).toMatch(/^[a-z]{12}$/);
+  });
+  it('rejects unsafe parameters and an empty character set', async () => {
+    await expect(run('password', '', 'generate', { lowercase: false, uppercase: false, digits: false, symbols: false })).rejects.toThrow('至少选择');
+    await expect(run('password', '', 'generate', { length: 11 })).rejects.toThrow('范围');
+    await expect(run('password', '', 'generate', { count: 51 })).rejects.toThrow('范围');
+    await expect(run('password', '', 'generate', { symbols: 'true' })).rejects.toThrow('布尔');
   });
 });

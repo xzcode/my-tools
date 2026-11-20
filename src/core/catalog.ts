@@ -49,6 +49,12 @@ export const tools: ToolDefinition[] = [
   { id: 'json-diff', name: 'JSON 对比', description: '按字段比较结构差异，忽略对象键名顺序。', category: 'data', icon: 'git-compare', keywords: ['json', 'diff', '对比', '结构'], inputLabel: '原始 JSON', secondaryInputLabel: '修改后 JSON', sampleInput: '{"name":"My Tools","version":1,"enabled":true}', sampleSecondaryInput: '{"enabled":true,"name":"My Tools","version":2,"theme":"dark"}', options: [], actions: actions(['compare', '对比 JSON']), defaultAction: 'compare', extension: 'json' },
   { id: 'convert', name: 'JSON · YAML · CSV', description: '本地转换数据格式；CSV 默认保留所有字段为字符串。', category: 'data', icon: 'arrows', keywords: ['json', 'yaml', 'csv', '转换'], sampleInput: '[{"name":"Jojo","role":"developer"},{"name":"My Tools","role":"assistant"}]',
     options: [select('from', '输入格式', [['json', 'JSON'], ['yaml', 'YAML'], ['csv', 'CSV']]), select('to', '输出格式', [['yaml', 'YAML'], ['json', 'JSON'], ['csv', 'CSV']]), check('csvHeader', 'CSV 首行为列名'), check('escapeFormulae', 'CSV 防止电子表格公式执行')], actions: actions(['convert', '转换']), defaultAction: 'convert', extension: 'txt', supportsBatch: true },
+  { id: 'aes', name: 'AES 加解密', description: 'AES-256-GCM 认证加密；口令经 PBKDF2 派生，密文含随机盐与 IV。', category: 'encoding', icon: 'lock', keywords: ['aes', 'gcm', 'pbkdf2', '加密', '解密', '口令', '密文'], sampleInput: '你好，My Tools 👋\n需要加密的私密文字',
+    options: [text('password', '加密口令', '', '至少 8 字符，建议更长；只保留在当前会话内存中')],
+    actions: actions(['encrypt', '加密'], ['decrypt', '解密']), defaultAction: 'encrypt', extension: 'txt' },
+  { id: 'password', name: '强密码生成器', description: '使用系统安全随机数，确保覆盖选中的字符类型。', category: 'developer', icon: 'shield', keywords: ['password', 'generator', '强密码', '安全', '随机'], sampleInput: '',
+    options: [number('length', '密码长度', 24, 12, 128), number('count', '生成数量', 1, 1, 50), check('lowercase', '小写字母'), check('uppercase', '大写字母'), check('digits', '数字'), check('symbols', '特殊符号'), check('excludeSimilar', '排除易混淆字符 O/0/I/l/1')],
+    actions: actions(['generate', '生成密码']), defaultAction: 'generate', extension: 'txt' },
   { id: 'curl', name: 'cURL 解析', description: '将 cURL 请求整理为结构化数据；不发起网络请求。', category: 'developer', icon: 'terminal', keywords: ['curl', 'http', '请求', 'header'], sampleInput: "curl 'https://api.example.com/users?page=1' -H 'Accept: application/json' -H 'Authorization: Bearer example-token' --data-raw '{\"name\":\"Jojo\"}'",
     options: [], actions: actions(['parse', '解析请求']), defaultAction: 'parse', extension: 'json', supportsBatch: true },
 ];

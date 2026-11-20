@@ -49,12 +49,14 @@ export function useToolRunner() {
         finish();
         reject(new Error('工具处理进程异常，已安全停止。请重试或缩小输入。'));
       };
+      const timeout = request.toolId === 'regex' ? 2000 : request.toolId === 'aes' ? 30000 : 10000;
       timer = setTimeout(() => {
         if (id !== currentId) return;
         cancel(request.toolId === 'regex'
           ? '正则运行超过 2 秒，已中断。请简化表达式，避免嵌套重复量词。'
+          : request.toolId === 'aes' ? 'AES 加解密超过 30 秒，已中断。请缩小输入后重试。'
           : '处理超过 10 秒，已中断。请缩小输入后重试。');
-      }, request.toolId === 'regex' ? 2000 : 10000);
+      }, timeout);
       try { activeWorker.postMessage({ id, request }); }
       catch {
         finish();

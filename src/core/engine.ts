@@ -7,6 +7,7 @@ import { compareText, processJoin, processText } from './text-tools';
 import { processHash, processJwt, processRegex, processSql, processSqlIn, processTimestamp, processUuid } from './developer-tools';
 import { processConvert } from './convert-tools';
 import { processCurl } from './curl-parser';
+import { processAes, processPassword } from './crypto-tools';
 
 /** Run in a dedicated, disposable Worker. Regex and diff must not block the UI. */
 export async function executeTool(request: ToolRequest): Promise<ToolResult> {
@@ -42,6 +43,8 @@ export async function executeTool(request: ToolRequest): Promise<ToolResult> {
     case 'json-diff': result = compareJson(normalized); break;
     case 'convert': result = processConvert(normalized); break;
     case 'curl': result = processCurl(normalized); break;
+    case 'aes': result = await processAes(normalized); break;
+    case 'password': result = processPassword(normalized); break;
     default: throw new Error('工具尚未实现。');
   }
   if (encoder.encode(result.output).length > MAX_OUTPUT_BYTES) throw new Error('输出超过 16 MiB，请减少输入或调整选项。');

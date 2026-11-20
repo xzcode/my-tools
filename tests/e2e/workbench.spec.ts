@@ -153,3 +153,44 @@ test('cURL parsing causes no outgoing requests', async ({ page }) => {
   await expect(output(page)).toHaveValue(/never-send\.example/);
   expect(external).toEqual([]);
 });
+
+
+test('AES encrypts and decrypts locally without saving the passphrase', async ({ page }) => {
+  await tool(page, 'aes');
+  const passphrase = 'private-ui-passphrase-2026!';
+  const original = '你好，桌面 AES 👋';
+  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill(original);
+  const input = page.getByLabel('加密口令', { exact: true });
+  await expect(input).toHaveAttribute('type', 'password');
+  await input.fill(passphrase);
+  await process(page);
+  await expect(output(page)).toHaveValue(/"algorithm": "AES-256-GCM"/);
+  const envelope = await output(page).inputValue();
+  const saved = await page.evaluate(() => JSON.stringify(localStorage));
+  expect(saved).not.toContain(passphrase);
+  expect(saved).not.toContain(original);
+  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill(envelope);
+  await page.getByRole('button', { name: '解密', exact: true }).click();
+  await process(page);
+  await expect(output(page)).toHaveValue(original);
+  await page.getByRole('button', { name: '清空', exact: true }).click();
+  await expect(input).toHaveValue('');
+});
+
+test('strong password generator enforces selected categories', async ({ page }) => {
+  await tool(page, 'password');
+  await page.getByLabel('密码长度', { exact: true }).fill('32');
+  await page.getByLabel('生成数量', { exact: true }).fill('3');
+  await process(page);
+  await expect(output(page)).not.toHaveValue('');
+  const rows = (await output(page).inputValue()).split('\n');
+  expect(rows).toHaveLength(3);
+  for (const value of rows) {
+    expect(value).toHaveLength(32);
+    expect(value).toMatch(/[a-z]/);
+    expect(value).toMatch(/[A-Z]/);
+    expect(value).toMatch(/[2-9]/);
+    expect(value).toMatch(/[^A-Za-z0-9]/);
+    expect(value).not.toMatch(/[O0Il1|]/);
+  }
+});
