@@ -33,7 +33,7 @@
 
 - `.dmg`：适用于 M1/M2/M3/M4 等 Apple Silicon Mac，选择 `aarch64` 架构。
 - `.exe`：Windows x64 的 NSIS 安装程序。
-- `.deb`：Debian/Ubuntu 系列 Linux x64 安装包。
+- `.deb`：Linux x64 安装包，在 Ubuntu 24.04 构建；其他发行版需核对系统依赖，或在目标环境自行构建。
 
 普通 `master` 推送或手动构建使用 `build-v<版本>-<运行ID>-<重试次数>` 草稿；版本标签构建使用相同的 `v<版本>` 标签草稿。安装包附带 `SHA256SUMS-<平台>.txt`，同一草稿还收集工作台与快捷窗口截图。
 
