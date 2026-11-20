@@ -1,6 +1,32 @@
-# My Tools · M1–M5 交接
+# My Tools · M1–M5 与后续增量交接
 
-日期：2026-11-20（Asia/Kuala_Lumpur）。版本：0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-20（Asia/Kuala_Lumpur）。**当前版本：0.2.0**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+
+
+## v0.2.0 · AES 与强密码生成器
+
+新增 2 项工具，总数增至 **18 项**，不改变原有 16 项工具的行为：
+
+- AES 加解密：本地 Web Crypto AES-256-GCM（128 bit 认证标签），PBKDF2-HMAC-SHA256 600,000 次口令派生；每次随机 16 B 盐和 12 B IV；密文以带版本/算法/KDF/参数的 JSON 封装；解密错误口令、版本不符或认证失败不会输出未经验证的明文。口令至少 8 字符，建议使用密码生成器生成长口令。
+- 强密码生成器：Web Crypto 安全随机源、拒绝采样和 Fisher–Yates 洗牌；支持 12–128 字符、1–50 条，选择大写、小写、数字、符号及易混淆字符过滤；每条包含至少一个所选类型的字符。
+- AES 密码输入框隐藏，示例操作不会自动提供默认密钥，当前工具“清空”会擦除该输入框内容；处理正文、密钥、生成密码都不持久化，只在会话内存中。密文复制到系统剪贴板后由系统自行管理。
+- AES JSON 格式只和明确实现了同格式的程序互通，不直接兼容 CryptoJS/OpenSSL 传统盐格式、AES-CBC 或 ECB。**口令丢失后无法从密文恢复明文**。本功能不是文件级全盘加密或密码管理器。
+
+### 测试与安装包
+
+- 功能源码与构建对应提交：[9ddb2e41](https://github.com/xzcode/my-tools/commit/9ddb2e41a134d28bed695bbd60ebdafa963016e5)。
+- [Desktop builds #44702779040](https://github.com/xzcode/my-tools/actions/runs/44702779040)：最终结论 **success**；64 项 Vitest 核心/后台任务测试、12 项真实 Chromium 浏览器操作验收、前端类型检查/生产构建，以及 macOS/Windows/Linux 各自 Rust 原生测试与打包上传成功。
+- 私有草稿下载：[Releases](https://github.com/xzcode/my-tools/releases)，选择 **My Tools 0.2.0 · ready to install**，对应构建标签为 build-v0.2.0-44702779040-1（草稿临时 URL 可能变化，不作为固定文档链接）。
+
+| 平台 | 已生成附件 | 大小（字节） | SHA-256 |
+| --- | --- | ---: | --- |
+| macOS Apple Silicon | My.Tools_0.2.0_aarch64.dmg | 2,734,680 | 79e0393afcc2f88cfb117f248042b8b77b4c54ce6b36d9b089dc178d3abd3083 |
+| Windows x64 | My.Tools_0.2.0_x64-setup.exe | 2,179,676 | 81f13cea0fd69e660c7d8212ec2ac04d3eba4711f740a36b0aefa4081839ae03 |
+| Linux x64（Ubuntu 24.04 runner） | My.Tools_0.2.0_amd64.deb | 3,227,048 | bd4992ee6a338a21bc733915749f20776e0edf71ede2dc02f6fa7577b3c361aa |
+
+草稿中也包含三个 SHA256SUMS 校验文件与界面验收截图。未进行 Apple Developer 公证、Windows 商业签名或用户本机的手动安装验收；可选在线更新仍为默认关闭。后续需要跨工具/语言兼容原始 AES 密钥格式时，应新增明确标识的原始密钥模式，不要以当前带口令 JSON 格式冒充通用 AES-CBC 格式。
+
+---
 
 ## 目标与实现
 
@@ -25,7 +51,7 @@
 
 当前交付环境禁止 Chromium 创建所需进程通信套接字，首次本地 Playwright 尝试在浏览器启动阶段报 `socket(): Operation not permitted`。真实界面验收已在 GitHub runner 执行通过，截图通过草稿 Release 保存。
 
-## 本次交付
+## v0.1.0 首版交付（历史记录）
 
 安装包对应源提交：[`15ef5ae814a002bb082bfeb21d3752d92c0919f0`](https://github.com/xzcode/my-tools/commit/15ef5ae814a002bb082bfeb21d3752d92c0919f0)。后续交接文档与发布导航修正不改变这些安装包中的应用代码。
 
