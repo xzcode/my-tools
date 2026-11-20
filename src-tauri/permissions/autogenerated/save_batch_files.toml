@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-batch-files"
+description = "Enables the save_batch_files command without any pre-configured scope."
+commands.allow = ["save_batch_files"]
+
+[[permission]]
+identifier = "deny-save-batch-files"
+description = "Denies the save_batch_files command without any pre-configured scope."
+commands.deny = ["save_batch_files"]

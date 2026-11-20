@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "launcher",
+  "description": "The launcher can read/update metadata and select tools, but cannot read files or clipboard or install updates.",
+  "windows": ["launcher"],
+  "permissions": [
+    "core:event:allow-listen", "core:event:allow-unlisten", "core:window:allow-start-dragging",
+    "allow-load-preferences", "allow-save-preferences",
+    "allow-show-main-window", "allow-show-launcher", "allow-hide-current-window", "allow-get-desktop-status"
+  ]
+}

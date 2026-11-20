@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-binary-file"
+description = "Enables the open_binary_file command without any pre-configured scope."
+commands.allow = ["open_binary_file"]
+
+[[permission]]
+identifier = "deny-open-binary-file"
+description = "Denies the open_binary_file command without any pre-configured scope."
+commands.deny = ["open_binary_file"]

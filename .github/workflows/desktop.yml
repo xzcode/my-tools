@@ -1,0 +1,150 @@
+name: Desktop builds
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      draft_release:
+        description: Create a private draft release after all builds succeed
+        type: boolean
+        default: false
+      updater:
+        description: Build signed updater artifacts (requires configured variables and secrets)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: workbench-screenshots
+          path: test-results/**/*.png
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-report
+          path: test-results/
+          retention-days: 7
+
+  desktop:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundle: dmg
+            label: macOS-Apple-Silicon
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle: nsis
+            label: Windows-x64
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bundle: deb
+            label: Linux-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: npm run build
+      - name: Native tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Build application and installer
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          BUILD_BUNDLE: ${{ matrix.bundle }}
+          ENABLE_UPDATER: ${{ inputs.updater || false }}
+          MY_TOOLS_UPDATE_ENDPOINT: ${{ vars.MY_TOOLS_UPDATE_ENDPOINT }}
+          MY_TOOLS_UPDATE_PUBKEY: ${{ vars.MY_TOOLS_UPDATE_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node scripts/build-desktop.mjs
+      - name: Collect installers and checksums
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: node scripts/collect-artifacts.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: My-Tools-${{ matrix.label }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+  draft-release:
+    needs: desktop
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.draft_release)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: My-Tools-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create draft with all platform installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
+          tag="v${version}"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "$tag" ]]; then
+            echo 'Tag does not match application version.' >&2
+            exit 1
+          fi
+          gh release create "$tag" release-assets/* --draft --target "$GITHUB_SHA" --title "My Tools ${version}" --notes-file docs/RELEASE_NOTES.md

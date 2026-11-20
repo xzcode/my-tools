@@ -1,0 +1,67 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "My Tools",
+  "version": "0.1.0",
+  "identifier": "io.xzcode.mytools",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "My Tools",
+        "create": false,
+        "url": "index.html",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 900,
+        "minHeight": 640,
+        "center": true,
+        "visible": true,
+        "dragDropEnabled": true
+      },
+      {
+        "label": "launcher",
+        "title": "My Tools · 快捷启动",
+        "create": false,
+        "url": "index.html?window=launcher",
+        "width": 680,
+        "height": 520,
+        "minWidth": 540,
+        "minHeight": 400,
+        "center": true,
+        "visible": false,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true
+      }
+    ],
+    "security": {
+      "capabilities": ["desktop", "launcher"],
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "离线开发者工具箱",
+    "longDescription": "JSON、文本、编码转换与开发辅助工具，全部在本机处理。",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "signingIdentity": "-"
+    },
+    "windows": {
+      "nsis": { "displayLanguageSelector": true, "languages": ["SimpChinese", "English"] }
+    }
+  }
+}
