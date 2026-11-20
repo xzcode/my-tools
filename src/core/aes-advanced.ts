@@ -59,7 +59,7 @@ export async function processAdvancedAes(request: ToolRequest): Promise<ToolResu
     throw new Error(mode + ' 模式的 IV 必须恰好 ' + requiredIvBytes + ' 字节，当前为 ' + iv.length + ' 字节。');
   }
   const crypto = requireCrypto();
-  const key = await crypto.subtle.importKey('raw', Uint8Array.from(keyBytes), 'AES-' + mode, false, [action]);
+  const key = await crypto.subtle.importKey('raw', Uint8Array.from(keyBytes), 'AES-' + mode, false, action === 'encrypt' ? ['encrypt'] : ['decrypt']);
   const warning = mode === 'GCM'
     ? '高级模式的 IV 由你管理：同一 Key 下 GCM 加密绝不能重复使用 IV。请每次加密生成新的随机 IV，并与密文一起保存。'
     : 'CBC 只提供保密性，不提供密文完整性认证；切勿依赖它检测篡改。可控制新系统时优先选择 GCM。';

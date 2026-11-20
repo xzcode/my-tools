@@ -194,3 +194,43 @@ test('strong password generator enforces selected categories', async ({ page }) 
     expect(value).not.toMatch(/[O0Il1|]/);
   }
 });
+
+
+test('AES advanced UI supports Java CBC, generates fresh IV, and hides raw Key', async ({ page }) => {
+  await tool(page, 'aes');
+  const profile = page.getByLabel('AES 工作模式', { exact: true });
+  await expect(profile).toHaveValue('simple');
+  await expect(page.getByLabel('原始 Key', { exact: true })).toHaveCount(0);
+  await profile.selectOption('advanced');
+  await expect(page.getByLabel('加密口令', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('GCM Tag 格式', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('CBC Padding', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '生成随机 IV' }).click();
+  const ivHex = await page.getByLabel('IV / Nonce', { exact: true }).inputValue();
+  expect(ivHex).toMatch(/^[0-9a-f]{24}$/);
+  await page.getByRole('button', { name: '生成随机 IV' }).click();
+  expect(await page.getByLabel('IV / Nonce', { exact: true }).inputValue()).not.toBe(ivHex);
+
+  await page.getByLabel('加密模式', { exact: true }).selectOption('CBC');
+  await expect(page.getByLabel('CBC Padding', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('GCM Tag 格式', { exact: true })).toHaveCount(0);
+  await page.getByLabel('密钥长度', { exact: true }).selectOption('128');
+  await page.getByLabel('Key 编码', { exact: true }).selectOption('utf8');
+  const keyField = page.getByLabel('原始 Key', { exact: true });
+  await expect(keyField).toHaveAttribute('type', 'password');
+  await keyField.fill('1234567890123456');
+  await page.getByLabel('IV 编码', { exact: true }).selectOption('utf8');
+  await page.getByLabel('IV / Nonce', { exact: true }).fill('abcdefghijklmnop');
+  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill('Hello AES CBC');
+  await process(page);
+  await expect(output(page)).toHaveValue(/^[A-Za-z0-9+/]+=*$/);
+  const ciphertext = await output(page).inputValue();
+  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill(ciphertext);
+  await page.getByRole('button', { name: '解密', exact: true }).click();
+  await process(page);
+  await expect(output(page)).toHaveValue('Hello AES CBC');
+
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('1234567890123456');
+  await page.getByRole('button', { name: '清空', exact: true }).click();
+  await expect(keyField).toHaveValue('');
+});
