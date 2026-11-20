@@ -1,16 +1,12 @@
-# My Tools 0.2.0
+# My Tools 0.3.0
 
-增加两项离线安全工具，工具总数从 16 项提升到 **18 项**：
+AES 加解密升级为**简单模式 + 高级模式**，原有 18 个工具均保留。
 
-- **AES 加解密**：AES-256-GCM 认证加密；600,000 次 PBKDF2-HMAC-SHA256 口令派生；每次生成 16 字节随机盐和 12 字节随机 IV；输出独立的、版本化 JSON 密文。使用相同口令即可解密，不会把口令写到持久化配置。错误口令或密文篡改会被认证检测并拒绝输出。
-- **强密码生成器**：使用 Web Crypto 安全随机数和拒绝采样，支持 12–128 字符、最多 50 条，选择大/小写字母、数字、特殊符号与易混淆字符过滤；每条密码至少包含一种选中的各类字符。
+- 简单模式：与 0.2.0 完全相同的 AES-256-GCM + PBKDF2-HMAC-SHA256 自描述 JSON 格式。每次随机 Salt 和 IV，老版本密文可继续解密。
+- 高级模式：128/192/256 位原始 AES Key、GCM/CBC、Key 和 IV 的 UTF-8/Hex/Base64 编码、明文 UTF-8/Hex/Base64、密文 Hex/Base64，GCM Tag 96–128 bit、附加/分离 Tag、可选 AAD，CBC PKCS7/NoPadding。
+- CBC PKCS7 与 Java AES/CBC/PKCS5Padding 按相同 AES 块填充规则兼容；NoPadding 要求字节长度按 16 整数倍对齐，支持原始二进制数据。高级模式不会自动对 Key 派生、截断或补零。
+- 高级模式新增“生成随机 IV”按钮。GCM 复用相同 Key+IV 会严重破坏安全性；对同一密钥每次加密都必须使用**全新 IV**，并自行保存与密文匹配的 IV。
+- CBC 没有完整性认证，错误密钥或篡改后的解密结果不能视为可信。高级 GCM 支持附加 Tag（对应 Java Cipher.doFinal）或独立 Tag JSON（便于 Node.js/其他实现适配）。
+- ECB 故意不提供。不进行远程加密、网络传输或内容持久化。
 
-AES 自定义密文格式只供本工具自身的加解密及明确实现相同格式的程序使用，并不等于 OpenSSL、CryptoJS、AES-CBC 或 ECB 输出格式。密码或处理数据仅保留在当前应用会话内存中。
-
-其他 16 项工具、快捷窗口、托盘、收藏、主题、文件处理、离线使用不变。
-
-此版本默认 macOS ad-hoc 签名、Windows 未配置商业签名；未进行 Apple Developer 公证。可选自动更新仅在配置 HTTPS 更新源和签名密钥后启用。
-
-安装包、SHA-256 校验文件与界面截图存于本次私有草稿 Release。构建结果以 [GitHub Actions](https://github.com/xzcode/my-tools/actions/workflows/desktop.yml) 为准。
-
-使用与安全边界见 [使用指南](https://github.com/xzcode/my-tools/blob/master/docs/USAGE.md) 和 [交接记录](https://github.com/xzcode/my-tools/blob/master/docs/HANDOFF.md)。
+自动化验收与三平台安装包见 GitHub Actions；默认 Mac ad-hoc 签名、Windows 未商业签名、未执行 Apple Developer 公证。可选在线更新仍默认关闭。

@@ -1,4 +1,5 @@
 import type { ToolRequest, ToolResult } from './types';
+import { processAdvancedAes } from './aes-advanced';
 import { boundedInt, encoder, isRecord, jsonParse, jsonStringify, optionBool, optionText } from './shared';
 import { decodeBase64Bytes, decodeUtf8, encodeBase64Bytes } from './encoding';
 
@@ -32,7 +33,7 @@ async function aesKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> 
  * salted output and NOT AES-CBC/ECB. ciphertext includes the 128-bit GCM tag.
  * Every encryption derives a fresh key and uses a fresh random 96-bit IV.
  */
-export async function processAes(request: ToolRequest): Promise<ToolResult> {
+async function processSimpleAes(request: ToolRequest): Promise<ToolResult> {
   const passphrase = optionText(request.options, 'password');
   if (passphrase.length < 8 || !passphrase.trim()) {
     throw new Error('请输入至少 8 个字符的加密口令；建议使用更长的随机口令。');
@@ -100,6 +101,12 @@ export async function processAes(request: ToolRequest): Promise<ToolResult> {
     output: decodeUtf8(new Uint8Array(plaintext)),
     summary: 'AES-256-GCM 解密并通过完整性认证',
   };
+}
+
+export async function processAes(request: ToolRequest): Promise<ToolResult> {
+  return optionText(request.options, 'profile') === 'advanced'
+    ? processAdvancedAes(request)
+    : processSimpleAes(request);
 }
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz';
