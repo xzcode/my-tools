@@ -13,7 +13,7 @@ describe('catalog and input guards', () => {
   it('every catalogue sample produces a usable result', async () => {
     expect(new Set(tools.map(tool => tool.id)).size).toBe(tools.length);
     for (const tool of tools) {
-      const sampleOptions = tool.id === 'aes' ? { password: 'Test-only-example-password-2026!' } : {};
+      const sampleOptions: Record<string, OptionValue> = tool.id === 'aes' ? { password: 'Test-only-example-password-2026!' } : {};
       const result = await run(tool.id, tool.sampleInput, tool.defaultAction, sampleOptions, tool.sampleSecondaryInput);
       expect(typeof result.output, tool.id).toBe('string');
       expect(result.output.length, tool.id).toBeGreaterThan(0);
