@@ -2,15 +2,35 @@
 
 ## 默认安装包
 
-`Desktop builds` 在推送 `master`、版本标签或手动运行时执行：
+`Desktop builds` 在推送 `master`、版本标签或手动运行时执行。安装包与截图直接上传到当前私有仓库的 **草稿 Release assets**，不使用 Actions Artifacts 作为下载入口：
 
 1. 检查三个版本号一致，运行核心测试、TypeScript 构建、浏览器验收。
 2. 分别在 macOS、Windows、Linux runner 上执行 Rust 格式检查、原生单元测试与 Tauri 打包。
-3. 收集 `.dmg`、NSIS `.exe`、`.deb`，输出 SHA-256 校验文件，上传到该次 Actions 的 Artifacts。
+3. 收集 `.dmg`、NSIS `.exe`、`.deb`，输出每个平台的 SHA-256 校验文件，上传到该次构建对应的草稿 Release。
+4. 将界面验收生成的工作台、快捷启动窗口截图保存到同一草稿，便于查看安装包对应的界面。
 
 默认三个目标：`aarch64-apple-darwin`、`x86_64-pc-windows-msvc`、`x86_64-unknown-linux-gnu`。Intel Mac 可在 macOS runner 增加 `x86_64-apple-darwin`；本版默认先覆盖 Apple Silicon。
 
-推送 `v<version>` 标签或手动选择 `draft_release` 时，只有全部平台构建成功才创建 GitHub **草稿 Release**。已有同名 Release 时创建步骤失败，不自动覆盖历史正式发布。审核后可在 GitHub 上将草稿发布。安装包和草稿保持仓库原有的私有访问范围。
+| 触发方式 | 草稿标签 |
+| --- | --- |
+| 推送 `master` | `build-v<version>-<runid>-<attempt>` |
+| 手动运行 | `build-v<version>-<runid>-<attempt>` |
+| 推送 `v<version>` 标签 | 与触发工作流的版本标签一致；标签必须与应用版本匹配 |
+
+普通构建的标签包含运行 ID 与重试次数，便于区分各次构建。版本标签构建不能覆盖同名的正式 Release；冲突应由维护者确认后处理。工作流不会自动将草稿发布，不会把私有仓库或安装包公开。
+
+草稿用于汇集并行任务的结果，因此它可能先包含截图，随后逐步增加不同平台的安装包。**存在草稿或部分附件不代表全部平台构建成功。** 下载前核对对应 Actions 运行和目标平台任务；只有所有平台任务成功后，该次交付才算完整。失败或取消的构建保留其真实状态，不会把部分附件标记为完整发布。
+
+## 获取安装包
+
+1. 使用可管理该私有仓库的账号登录 GitHub，打开 [Releases](https://github.com/xzcode/my-tools/releases)。
+2. 找到与 Actions 运行对应的草稿。普通构建可用标签里的运行 ID 对照 [Desktop builds](https://github.com/xzcode/my-tools/actions/workflows/desktop.yml)。
+3. 在 Assets 下载目标平台安装包与 `SHA256SUMS-<target>.txt`。工作台和快捷窗口截图位于同一处。
+4. 校验文件后安装。常见操作见 [日常使用指南](USAGE.md)。
+
+本项目曾在测试通过后遇到账户 Actions Artifacts 存储配额阻止上传，随后改为 Release assets 分发。Release 附件与 Actions artifact 的存储机制不同；它们仍遵循 GitHub 的服务限制。GitHub 当前说明每个 Release 最多 1000 个附件，单文件必须小于 2 GiB，适合本项目的安装包和截图。依据：[GitHub Releases storage and bandwidth quotas](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas)、[GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)。
+
+此调整不删除其他项目的产物，也不代替 Actions runner 的构建额度。构建日志与任务结果仍在 Actions 页面查看。
 
 仓库如未启用 Actions、账户构建额度不足或 runner 不可用，构建会停留在平台侧；不可把配置文件存在当作安装包已构建。
 
@@ -64,8 +84,8 @@ npm run desktop:build
 
 先按 [官方 updater 文档](https://v2.tauri.app/plugin/updater/) 生成密钥并在安全位置保存。每个平台的包须生成对应 `.sig`，再将签名、版本、下载 URL 写入 HTTPS 更新清单。更新清单和包上传到你控制的发布源；对私有 GitHub 仓库，不可在应用中硬编码 GitHub Token。需要鉴权的更新分发应由专门的分发端处理。
 
-当前工作流只生成签名包，不会擅自部署更新服务器或发布更新清单。未配置发布源时，可直接下载新安装包手动更新。
+当前工作流生成签名包后将其作为草稿 Release 附件保存，不会部署更新服务器或发布更新清单。草稿附件不是供客户端自动访问的公开更新源。未配置发布源时，可登录 GitHub 下载新安装包手动更新。
 
 ## 发布检查
 
-同步三个版本号；更新 CHANGELOG/RELEASE_NOTES；验证该次工作流的实际安装包和校验文件；在目标系统安装、启动，确认快捷键、托盘、文件、剪贴板；有证书的版本还需验证签名、公证和更新安装。只在交接记录中填写真实完成项。
+同步三个版本号；更新 `docs/RELEASE_NOTES.md`；验证该次草稿 Release 的实际安装包、截图和校验文件，以及相应 Actions 任务结果；在目标系统安装、启动，确认快捷键、托盘、文件、剪贴板；有证书的版本还需验证签名、公证和更新安装。需要正式发布时，再由维护者审核草稿并发布。只在交接记录中填写真实完成项。

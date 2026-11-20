@@ -93,7 +93,9 @@ npm run desktop:build -- --target x86_64-pc-windows-msvc --bundles nsis
 npm run desktop:build -- --bundles deb,appimage
 ```
 
-构建产物在 `src-tauri/target/<target>/release/bundle/`，未指定 target 时位于 `src-tauri/target/release/bundle/`。仓库 CI 会归档对应产物；Linux 编译成功不能替代 macOS 或 Windows 构建结果。
+构建产物在 `src-tauri/target/<target>/release/bundle/`，未指定 target 时位于 `src-tauri/target/release/bundle/`。仓库 CI 将安装包、平台 SHA-256 校验文件与界面截图上传到私有草稿 Release assets。登录可管理仓库的 GitHub 账号后，在 [Releases](https://github.com/xzcode/my-tools/releases) 下载，Actions 页面用于查看状态和日志。
+
+普通 `master` 推送或手动运行的草稿标签为 `build-v<版本>-<运行ID>-<重试次数>`；版本标签构建使用相同的 `v<版本>` 草稿。草稿可能在各平台任务完成前已存在；以对应任务的成功结果确认安装包状态。Linux 编译成功不能替代 macOS 或 Windows 构建结果。完整流程见 [构建与发布](RELEASING.md)，安装后的常见操作见 [日常使用](USAGE.md)。
 
 基础配置的 macOS `signingIdentity` 为 `-`，即 ad-hoc 签名。它适合本地开发与个人试用，但不是 Apple Developer ID 签名，也不包含 Apple 公证。下载的未公证包可能被 Gatekeeper 拦截；用户可以在确认来源后依照 macOS 的“隐私与安全性”界面处理，正式分发应完成签名和公证。项目不提供关闭系统保护的脚本。
 

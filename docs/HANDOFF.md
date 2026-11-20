@@ -16,16 +16,18 @@
 
 ## 已完成验证
 
-- 47 个核心行为/边界测试通过，包括长整数、中文/二进制 Base64、SHA/HMAC 向量、SQL 引号、CSV、JSON Diff、输出放大边界。
+- 57 个核心行为/后台任务测试通过，包括长整数、中文/二进制 Base64、SHA/HMAC 向量、SQL 引号、CSV、JSON Diff、输出放大、Worker 超时与取消。
 - TypeScript 检查、Vite 生产构建通过。
-- Linux Rust `cargo check` 通过。
-- 原生 Rust 单元测试、GitHub 三平台构建与 UI 操作验收仍在本次交付中执行，完成后更新本节；不能据此推断安装包已生成。
+- Linux Rust `cargo check`、`cargo check --features updater` 通过，9 个原生文件/设置测试通过。
+- GitHub 运行 [44696636512](https://github.com/xzcode/my-tools/actions/runs/44696636512) 的 10 项真实 Chromium 操作验收全部通过，耗时 19.2 秒。包括二进制文件往返、敏感输入不持久化、正则超时恢复、批量部分失败隔离。
+- 该运行随后因 GitHub Actions artifact storage quota 已满而无法上传截图，安装包作业被依赖关系跳过。已改为私有草稿 Release 保存安装包/截图/校验文件，正在执行新构建，完成后更新本节。
+- 升级开发测试依赖到 Vitest 5.1.1 后重新通过 57 项测试与生产构建；npm audit 当前报告 0 个已知漏洞。
 
-当前交付环境禁止 Chromium 创建所需进程通信套接字，首次本地 Playwright 尝试在浏览器启动阶段报 `socket(): Operation not permitted`，尚未运行界面用例。CI 已包含真实浏览器测试与截图保存。
+当前交付环境禁止 Chromium 创建所需进程通信套接字，首次本地 Playwright 尝试在浏览器启动阶段报 `socket(): Operation not permitted`。真实界面验收已在 GitHub runner 执行通过，截图通过草稿 Release 保存。
 
 ## 使用方式
 
-安装包查看 GitHub Actions 的 `Desktop builds` 成功运行中的 Artifacts。macOS 选择 Apple Silicon `.dmg`，Windows 选择 x64 NSIS `.exe`。
+安装包查看仓库 Releases 中对应 `Desktop builds` 的私有草稿。macOS 选择 Apple Silicon `.dmg`，Windows 选择 x64 NSIS `.exe`；需要全部目标作业成功才能把草稿视为完整构建。
 
 开发：`npm ci && npm run desktop:dev`。仅界面：`npm run dev`。功能验证：`npm run check`；UI：`npm run test:e2e`；原生：`cargo test --manifest-path src-tauri/Cargo.toml --locked`。
 

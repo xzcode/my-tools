@@ -4,14 +4,12 @@ on:
   push:
     branches: [master]
     tags: ['v*']
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
     branches: [master]
+    paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
     inputs:
-      draft_release:
-        description: Create a private draft release after all builds succeed
-        type: boolean
-        default: false
       updater:
         description: Build signed updater artifacts (requires configured variables and secrets)
         type: boolean
@@ -25,12 +23,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  prepare-release:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-assets.mjs prepare
+
   quality:
+    needs: prepare-release
+    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -38,22 +58,16 @@ jobs:
       - run: npm run check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: workbench-screenshots
-          path: test-results/**/*.png
-          if-no-files-found: error
-          retention-days: 30
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: browser-test-report
-          path: test-results/
-          retention-days: 7
+      - name: Attach UI screenshots to the private draft
+        if: success() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: node scripts/release-assets.mjs screenshots
 
   desktop:
-    needs: quality
+    needs: [prepare-release, quality]
+    if: always() && needs.quality.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -72,9 +86,11 @@ jobs:
             label: Linux-x64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -116,35 +132,28 @@ jobs:
         env:
           BUILD_TARGET: ${{ matrix.target }}
         run: node scripts/collect-artifacts.mjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: My-Tools-${{ matrix.label }}
-          path: artifacts/
-          if-no-files-found: error
-          retention-days: 30
+      - name: Attach platform installers to the private draft
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: node scripts/release-assets.mjs installers
 
-  draft-release:
-    needs: desktop
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.draft_release)
+  finish-draft:
+    needs: [prepare-release, quality, desktop]
+    if: always() && needs.prepare-release.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          pattern: My-Tools-*
-          path: release-assets
-          merge-multiple: true
-      - name: Create draft with all platform installers
-        env:
+          node-version: '22'
+          package-manager-cache: false
+      - env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          version=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
-          tag="v${version}"
-          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "$tag" ]]; then
-            echo 'Tag does not match application version.' >&2
-            exit 1
-          fi
-          gh release create "$tag" release-assets/* --draft --target "$GITHUB_SHA" --title "My Tools ${version}" --notes-file docs/RELEASE_NOTES.md
+          BUILD_RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+        run: node scripts/release-assets.mjs finish

@@ -25,15 +25,21 @@
 
 支持复制、显式读取剪贴板、文件导入导出、批量处理、收藏、最近使用、搜索与深浅主题。最近使用仅记录工具名称/ID，不记录处理内容。
 
+第一次使用可直接看 [日常使用指南](docs/USAGE.md)，其中包含 JSON、字符串拼接、Base64 文件处理和快捷键的操作示例。
+
 ## 安装包
 
-GitHub [Actions → Desktop builds](https://github.com/xzcode/my-tools/actions/workflows/desktop.yml) 成功后，在该次运行的 **Artifacts** 下载：
+登录可管理此私有仓库的 GitHub 账号，打开 [Releases](https://github.com/xzcode/my-tools/releases)，在对应构建的 **草稿 Release → Assets** 中下载：
 
-- `My-Tools-macOS-Apple-Silicon`：适用于 M1/M2/M3/M4 等 Apple Silicon Mac 的 `.dmg`。
-- `My-Tools-Windows-x64`：Windows x64 的 NSIS 安装程序 `.exe`。
-- `My-Tools-Linux-x64`：Debian/Ubuntu 系列的 `.deb`。
+- `.dmg`：适用于 M1/M2/M3/M4 等 Apple Silicon Mac，选择 `aarch64` 架构。
+- `.exe`：Windows x64 的 NSIS 安装程序。
+- `.deb`：Debian/Ubuntu 系列 Linux x64 安装包。
 
-每个包附带 SHA-256 校验文件。安装包是否实际生成，以对应 Actions 的成功结果为准；具体本次交付证据见 [交接记录](docs/HANDOFF.md)。
+普通 `master` 推送或手动构建使用 `build-v<版本>-<运行ID>-<重试次数>` 草稿；版本标签构建使用相同的 `v<版本>` 标签草稿。安装包附带 `SHA256SUMS-<平台>.txt`，同一草稿还收集工作台与快捷窗口截图。
+
+草稿可能在平台构建过程中已出现，此时附件仍在补齐。是否已经完整生成，以对应 [Actions → Desktop builds](https://github.com/xzcode/my-tools/actions/workflows/desktop.yml) 的实际结果为准；具体本次交付证据见 [交接记录](docs/HANDOFF.md)。工作流不会自动把草稿发布，也不会改变仓库的私有访问范围。
+
+本项目将安装包和截图存入 Release assets，不依赖 Actions Artifacts 的存储配额；Actions 页面仍用于查看构建状态和日志。
 
 macOS 默认采用 ad-hoc 签名，自用版本未接入 Apple Developer 公证；Windows 默认未配置商业代码签名。签名、公证和可选自动更新的配置见 [发布说明](docs/RELEASING.md)。不需要为了本地运行提供账号或服务端。
 
@@ -87,4 +93,4 @@ docs/           使用、架构、发布、阶段与交接记录
 - 默认构建不启用网络更新。可选更新需独立配置 HTTPS 更新源与签名公钥，并由用户触发检查/安装。
 - CPU 密集操作在 Worker 中执行；正则超时会终止任务，保留主界面可操作。
 
-详细限制与扩展规范见 [架构](docs/ARCHITECTURE.md)、[桌面能力](docs/DESKTOP.md)、[M1–M5 交接](docs/HANDOFF.md)。
+详细说明见 [日常使用](docs/USAGE.md)、[架构](docs/ARCHITECTURE.md)、[桌面能力](docs/DESKTOP.md)、[构建与发布](docs/RELEASING.md)、[M1–M5 交接](docs/HANDOFF.md)。
