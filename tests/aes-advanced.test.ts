@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCipheriv, createDecipheriv } from 'node:crypto';
+import { createCipheriv } from 'node:crypto';
 import { executeTool } from '../src/core/engine';
 import { defaultOptions, getTool } from '../src/core/catalog';
 import type { OptionValue } from '../src/core/types';
@@ -58,7 +58,10 @@ describe('advanced AES interoperability', () => {
       cipherEncoding: 'hex', tagLength: '128', tagFormat: 'appended',
       aad, aadEncoding: 'utf8',
     };
-    const node = createCipheriv('aes-' + bits + '-gcm', key, iv);
+    const node = createCipheriv('aes-' + bits + '-gcm', key, iv) as ReturnType<typeof createCipheriv> & {
+      setAAD(data: Buffer): void;
+      getAuthTag(): Buffer;
+    };
     node.setAAD(Buffer.from(aad));
     const cipher = Buffer.concat([node.update(text, 'utf8'), node.final()]);
     const expected = Buffer.concat([cipher, node.getAuthTag()]);
