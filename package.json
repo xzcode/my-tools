@@ -2,6 +2,7 @@
   "name": "my-tools",
   "version": "0.4.0",
   "private": true,
+  "license": "MIT",
   "description": "An offline personal developer toolbox for macOS, Windows and Linux.",
   "type": "module",
   "scripts": {

@@ -33,7 +33,7 @@ AES 简单模式使用 Web Crypto 认证加密和本项目自有 JSON 封装；�
 
 ## 安装包
 
-登录可管理此私有仓库的 GitHub 账号，打开 [Releases](https://github.com/xzcode/my-tools/releases)，在对应构建的 **草稿 Release → Assets** 中下载：
+仓库现已公开，但目前的安装包仍在 **Draft Release（草稿发布）** 中，仅有发布管理权限的账号可以查看和下载；普通访客需等正式发布 Release 才能下载。打开 [Releases](https://github.com/xzcode/my-tools/releases)，在对应构建的 **草稿 Release → Assets** 中下载：
 
 - `.dmg`：适用于 M1/M2/M3/M4 等 Apple Silicon Mac，选择 `aarch64` 架构。
 - `.exe`：Windows x64 的 NSIS 安装程序。
@@ -98,3 +98,7 @@ docs/           使用、架构、发布、阶段与交接记录
 - CPU 密集操作在 Worker 中执行；正则超时会终止任务，保留主界面可操作。
 
 详细说明见 [日常使用](docs/USAGE.md)、[架构](docs/ARCHITECTURE.md)、[桌面能力](docs/DESKTOP.md)、[构建与发布](docs/RELEASING.md)、[M1–M5 交接](docs/HANDOFF.md)。
+
+## 开源许可证
+
+本项目采用 [MIT License](LICENSE)，版权归 © 2026 xzcode 所有。允许个人或商业使用、修改和再分发，但须保留原版权及许可证声明。依赖库仍各自遵循其原有许可证。

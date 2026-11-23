@@ -3,6 +3,7 @@ name = "my-tools"
 version = "0.4.0"
 description = "Offline developer toolbox"
 authors = ["Jojo"]
+license = "MIT"
 edition = "2021"
 rust-version = "1.90"
 

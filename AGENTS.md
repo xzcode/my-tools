@@ -1,6 +1,6 @@
 # Project guidance
 
-My Tools is a private, offline-first personal desktop toolbox built with Tauri 2, Vue 3, TypeScript and Rust.
+My Tools is a public, MIT-licensed, offline-first personal desktop toolbox built with Tauri 2, Vue 3, TypeScript and Rust.
 
 - Read `docs/HANDOFF.md` before continuing work. Keep completed work, remaining limitations and verification evidence accurate.
 - Keep pure transformations in `src/core`, off-main-thread scheduling in the Worker layer, and OS access behind `src/platform/desktop.ts` / Rust commands.
