@@ -1,8 +1,33 @@
 # My Tools · M1–M5 与后续增量交接
 
-日期：2026-11-20（Asia/Kuala_Lumpur）。**当前版本：0.3.0**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-20（Asia/Kuala_Lumpur）。**当前版本：0.4.0**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
 
 
+
+
+## v0.4.0 · Java AES/ECB/PKCS5Padding 旧系统兼容
+
+- 原有 **18 项工具**以及 AES 简单模式、GCM/CBC 高级模式保留不变。高级模式增加 **ECB（旧系统兼容）**，不用于新开发的加密协议。
+- 与 Java javax.crypto.spec.SecretKeySpec(raw, "AES") + Cipher.getInstance("AES/ECB/PKCS5Padding") 对接：精确使用 raw 密钥字节；AES-128/192/256 需要 16/24/32 字节；例如无连字符的 32 个 ASCII 字符 UUID 经 UTF-8 转换后为 AES-256 Key。若 Java 先解码十六进制则 Key 编码应选 Hex，不能按原字符串长度猜测 Key 长度。
+- ECB **不需要 IV**。该模式不展示、不解析、不校验 IV/IV 编码，也不显示随机 IV 按钮；新增「Java ECB/PKCS5」一键预设：高级模式、ECB、AES-256、Key UTF-8、Padding PKCS7、明文 UTF-8、密文 Base64。支持 PKCS7（AES 上与 Java 的 PKCS5Padding 兼容）和 NoPadding。
+- 使用系统 Web Crypto AES-CBC 分组操作进行 ECB 兼容变换，没有自己实现 AES 轮算法，也没有增加第三方加密依赖。ECB 加密端有 256 KiB 明文限制，避免逐块异步调用导致长期占用；解密仍受原有单次文本/Worker 大小和超时限制。
+- **安全警告：** ECB 不具有密文完整性认证，会暴露重复明文块；填充正确不代表解密结果可信。此模式只用于已有 Java 旧系统兼容；新系统继续推荐 GCM。
+
+### v0.4.0 验证与附件
+
+- 功能与验收源提交：[d719b398](https://github.com/xzcode/my-tools/commit/d719b398a24c267117b9c3ccb034eeffadf4bb18)，随后文档提交不改变已构建源码。
+- [GitHub Actions #45136363419](https://github.com/xzcode/my-tools/actions/runs/45136363419) 结论 **success**，83 项 Vitest 核心/Worker 测试与 14 项真实 Chromium 页面操作测试全部通过，且 TypeScript/前端构建、三平台原生测试和安装包构建上传成功。ECB 的独立测试对照 Node.js AES-128/192/256 ECB Base64 输出及 NIST AES-128 ECB NoPadding 向量，并验证旧模式解密兼容。
+- 私有草稿：[Releases](https://github.com/xzcode/my-tools/releases) → **My Tools 0.4.0 · ready to install**；构建标签 build-v0.4.0-45136363419-1。使用稳定的列表入口，避免 GitHub 草稿临时地址更新导致失效。
+
+| 目标平台 | 已生成附件 | 大小（字节） | SHA-256 |
+| --- | --- | ---: | --- |
+| Mac Apple Silicon | My.Tools_0.4.0_aarch64.dmg | 2,741,566 | 2ac7ba31e2f73e360635a7252a01e58d0655fb1500a00a63c0aa8b7b526e4bc4 |
+| Windows x64 | My.Tools_0.4.0_x64-setup.exe | 2,183,994 | 519d0e3c914628aa423a8f753c1c90248ceecc5ae2a321b4afb960b8adae22fc |
+| Linux x64（Ubuntu 24.04） | My.Tools_0.4.0_amd64.deb | 3,229,982 | e5e41a014fc36103f96bc2005d01b75e93c332385bb33fed3dbfd2611b24ed6f |
+
+同一私有草稿包含三个 SHA256SUMS 校验文件与 UI 验收截图。macOS 默认 ad-hoc 签名，无 Apple 公证；Windows 无商业签名；未在用户真实电脑上做手工安装测试。
+
+---
 
 ## v0.3.0 · AES 简单/高级双模式
 
