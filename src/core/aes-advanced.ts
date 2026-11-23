@@ -3,9 +3,98 @@ import { encoder, isRecord, jsonParse, jsonStringify, optionText } from './share
 import { bytesToHex, decodeBase64Bytes, decodeUtf8, encodeBase64Bytes, hexToBytes } from './encoding';
 
 type Encoding = 'utf8' | 'hex' | 'base64';
-type CipherMode = 'GCM' | 'CBC';
+type CipherMode = 'GCM' | 'CBC' | 'ECB';
 type Padding = 'pkcs7' | 'none';
 const CBC_BLOCK_BYTES = 16;
+
+/**
+ * Compatibility only: AES/ECB/PKCS5Padding from Java.
+ * WebCrypto intentionally has no ECB. The first block of CBC with zero IV
+ * equals AES-ECB of one block; CBC decryption can be unchained by XORing
+ * the previous ciphertext block. No AES rounds are implemented here.
+ */
+const ECB_LIMIT = 256 * 1024;
+const ECB_WARNING = 'ECB 仅用于兼容已有 Java AES/ECB/PKCS5Padding：重复明文块泄露模式，且不验证篡改。新系统应使用 GCM。';
+
+async function processLegacyEcb(
+  request: ToolRequest, keyBytes: Uint8Array, keyBits: number,
+  dataEncoding: Encoding, cipherEncoding: Encoding, crypto: Crypto,
+): Promise<ToolResult> {
+  const padding = optionText(request.options, 'padding') as Padding;
+  const iv = new Uint8Array(CBC_BLOCK_BYTES); // internal zero IV; ECB has no IV parameter
+  const key = await crypto.subtle.importKey(
+    'raw', Uint8Array.from(keyBytes), 'AES-CBC', false,
+    request.action === 'encrypt' ? ['encrypt'] : ['encrypt', 'decrypt'],
+  );
+  if (request.action === 'encrypt') {
+    const input = parseBytes(request.input, dataEncoding, '明文');
+    if (input.length > ECB_LIMIT) throw new Error('ECB 兼容加密限 256 KiB 明文；请勿用于大文件。');
+    if (padding === 'none' && input.length % CBC_BLOCK_BYTES) {
+      throw new Error('ECB NoPadding 明文长度必须是 16 字节的整数倍。');
+    }
+    const pad = padding === 'pkcs7' ? CBC_BLOCK_BYTES - input.length % CBC_BLOCK_BYTES : 0;
+    const payload = new Uint8Array(input.length + pad);
+    payload.set(input);
+    if (pad) payload.fill(pad, input.length);
+    const output = new Uint8Array(payload.length);
+    // Bound concurrency to avoid overwhelming the platform crypto backend.
+    for (let offset = 0; offset < payload.length; offset += 32 * CBC_BLOCK_BYTES) {
+      const n = Math.min(32, (payload.length - offset) / CBC_BLOCK_BYTES);
+      const blocks = await Promise.all(Array.from({ length: n }, (_, i) => {
+        const at = offset + i * CBC_BLOCK_BYTES;
+        return crypto.subtle.encrypt(
+          { name: 'AES-CBC', iv }, key,
+          Uint8Array.from(payload.subarray(at, at + CBC_BLOCK_BYTES)),
+        );
+      }));
+      blocks.forEach((b, i) => output.set(new Uint8Array(b).subarray(0, CBC_BLOCK_BYTES), offset + i * CBC_BLOCK_BYTES));
+    }
+    return {
+      output: renderBytes(output, cipherEncoding),
+      summary: 'AES-' + keyBits + '-ECB ' + (padding === 'none' ? 'NoPadding' : 'Java PKCS5Padding') + ' 加密完成 · 无 IV',
+      warnings: [ECB_WARNING],
+    };
+  }
+
+  const ciphertext = parseBytes(request.input, cipherEncoding, '密文');
+  if (ciphertext.length % CBC_BLOCK_BYTES || (padding === 'pkcs7' && !ciphertext.length)) {
+    throw new Error('ECB 密文长度必须是 16 字节的整数倍，PKCS5/PKCS7 密文不能是空的。');
+  }
+  if (!ciphertext.length) return { output: '', summary: 'AES-' + keyBits + '-ECB NoPadding 解密完成', warnings: [ECB_WARNING] };
+  // A synthetic final encrypted padding block satisfies WebCrypto CBC's
+  // required PKCS7 unpadding without changing the existing ciphertext.
+  const last = ciphertext.subarray(ciphertext.length - CBC_BLOCK_BYTES);
+  const synthetic = new Uint8Array(await crypto.subtle.encrypt(
+    { name: 'AES-CBC', iv: Uint8Array.from(last) }, key, new Uint8Array(0),
+  ));
+  const extended = new Uint8Array(ciphertext.length + CBC_BLOCK_BYTES);
+  extended.set(ciphertext);
+  extended.set(synthetic, ciphertext.length);
+  const bytes = new Uint8Array(await crypto.subtle.decrypt(
+    { name: 'AES-CBC', iv }, key, extended,
+  ));
+  for (let i = CBC_BLOCK_BYTES; i < bytes.length; i++) {
+    bytes[i] = bytes[i]! ^ ciphertext[i - CBC_BLOCK_BYTES]!;
+  }
+
+  let length = bytes.length;
+  if (padding === 'pkcs7') {
+    const pad = bytes[length - 1]!;
+    let invalid = Number(pad < 1 || pad > CBC_BLOCK_BYTES);
+    for (let i = 0; i < CBC_BLOCK_BYTES; i++) {
+      if (i < pad) invalid |= bytes[length - 1 - i]! ^ pad;
+    }
+    if (invalid) throw new Error('ECB PKCS5Padding 填充校验失败：Key、密文或 Padding 可能不匹配（ECB 不认证密文）。');
+    length -= pad;
+  }
+  return {
+    output: renderBytes(bytes.subarray(0, length), dataEncoding),
+    summary: 'AES-' + keyBits + '-ECB ' + (padding === 'none' ? 'NoPadding' : 'Java PKCS5Padding') + ' 解密完成 · 无 IV',
+    warnings: [ECB_WARNING],
+  };
+}
+
+
 
 function requireCrypto(): Crypto {
   if (!globalThis.crypto?.getRandomValues || !globalThis.crypto?.subtle) {
@@ -53,12 +142,14 @@ export async function processAdvancedAes(request: ToolRequest): Promise<ToolResu
   if (![128, 192, 256].includes(keySize) || keyBytes.length !== requiredKeyBytes) {
     throw new Error('Key 长度必须与所选 AES-' + keySize + ' 匹配：需要 ' + requiredKeyBytes + ' 字节，当前为 ' + keyBytes.length + ' 字节；高级模式不会对 Key 自动做哈希或补齐。');
   }
+  const crypto = requireCrypto();
+  // ECB ignores IV completely, including any old input hidden in the UI.
+  if (mode === 'ECB') return processLegacyEcb(request, keyBytes, keySize, plaintextEncoding, ciphertextEncoding, crypto);
   const iv = parseBytes(optionText(options, 'iv'), optionText(options, 'ivEncoding'), 'IV');
   const requiredIvBytes = mode === 'GCM' ? 12 : CBC_BLOCK_BYTES;
   if (iv.length !== requiredIvBytes) {
     throw new Error(mode + ' 模式的 IV 必须恰好 ' + requiredIvBytes + ' 字节，当前为 ' + iv.length + ' 字节。');
   }
-  const crypto = requireCrypto();
   // CBC NoPadding decrypt uses an auxiliary CBC encryption of a synthetic
   // padding block; request both key usages only for that specific path.
   const usages: KeyUsage[] = mode === 'CBC' && action === 'decrypt' && optionText(options, 'padding') === 'none'

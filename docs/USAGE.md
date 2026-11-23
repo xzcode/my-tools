@@ -74,3 +74,17 @@
 **IV 安全**：高级模式不会悄悄固定或自动重用 IV。点击“生成随机 IV”会使用系统安全随机数并设置 Hex 编码；每次 GCM 加密都要重新生成，随后将该次 IV 与密文一起保管。IV 不是秘密，但丢失会导致无法解密。手动填入固定 IV 是为旧系统联调提供的兼容能力，不意味着可以安全重复使用固定 IV。
 
 **保密边界**：Key、口令、明文和密文只在当前运行会话内存中；关闭应用后不恢复。复制或导出时，相关内容会进入操作系统剪贴板或用户选择的文件。AES-CBC 未认证，错误 Key 可能产生看似可读但实际不正确的文本；需要校验安全性时请用 GCM。
+
+
+## Java AES/ECB/PKCS5Padding 旧系统兼容（0.4.0）
+
+在 AES 工具栏点 **Java ECB/PKCS5**，自动设为高级模式、ECB、AES-256、Key UTF-8、PKCS7、明文 UTF-8、密文 Base64。**ECB 没有 IV**，IV 编码/输入框会自动隐藏，之前输入的 IV 也不会被使用。
+
+与 Java SecretKeySpec(raw, "AES") / Cipher.getInstance("AES/ECB/PKCS5Padding") 对接时，必须确保 Key 采用 Java 实际的 raw 字节：
+
+- 如果 Java 是 secret.getBytes(StandardCharsets.UTF_8)，且 secret 是去掉横杠的 32 个 ASCII 字符 UUID，那么选 256 bit + UTF-8 Key；将 secret 原样填入原始 Key。
+- 如果 Java 先把 Hex 字符串解码成原始字节，就选 Hex Key，并按解码后 16/24/32 字节选择 AES-128/192/256。带横杠的 UUID 通常是 36 个 ASCII 字节，不能直接作为 AES-256 密钥。
+
+加密输入 UTF-8 明文，输出 Base64；解密粘贴 Java 返回的 Base64，输出 UTF-8 明文。默认 PKCS7 对应 Java 的 PKCS5Padding；也支持 NoPadding（数据必须 16 字节对齐）。ECB 加密明文限 256 KiB。
+
+**安全边界：** ECB 不使用 IV，但这是因为它是一种存在明显弱点的旧模式，并非优势。相同明文块产生相同密文块；也不会验证密文是否遭到篡改。仅作旧系统兼容，不要用来设计新加密协议。新系统推荐 AES-GCM。

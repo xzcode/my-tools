@@ -27,7 +27,7 @@
 
 共有 **18 项工具**，支持复制、显式读取剪贴板、文件导入导出、批量处理、收藏、最近使用、搜索与深浅主题。
 
-AES 简单模式使用 Web Crypto 认证加密和本项目自有 JSON 封装；高级模式接受原始 Key/IV，可与明确匹配参数的 Java/Node.js/Python AES GCM/CBC 实现互通。高级 CBC 无完整性认证；GCM 加密时同一 Key 下绝不能复用 IV。加密口令须自行保存，**丢失口令无法恢复明文**。密码生成使用安全随机源，不依赖 Math.random。最近使用仅记录工具名称/ID，不记录处理内容。
+AES 简单模式使用 Web Crypto 认证加密和本项目自有 JSON 封装；高级模式接受原始 Key/IV，可与明确匹配参数的 Java/Node.js/Python AES GCM/CBC 实现互通。新增加 Java AES/ECB/PKCS5Padding 旧系统兼容及一键预设（ECB 无 IV、无完整性认证）。高级 CBC 无完整性认证；GCM 加密时同一 Key 下绝不能复用 IV。加密口令须自行保存，**丢失口令无法恢复明文**。密码生成使用安全随机源，不依赖 Math.random。最近使用仅记录工具名称/ID，不记录处理内容。
 
 第一次使用可直接看 [日常使用指南](docs/USAGE.md)，其中包含 JSON、字符串拼接、Base64 文件处理和快捷键的操作示例。
 
