@@ -204,7 +204,7 @@ test('AES advanced UI supports Java CBC, generates fresh IV, and hides raw Key',
   await profile.selectOption('advanced');
   await expect(page.getByLabel('加密口令', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('GCM Tag 格式', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('CBC Padding', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('CBC / ECB Padding', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '生成随机 IV' }).click();
   const ivHex = await page.getByLabel('IV / Nonce', { exact: true }).inputValue();
   expect(ivHex).toMatch(/^[0-9a-f]{24}$/);
@@ -212,7 +212,7 @@ test('AES advanced UI supports Java CBC, generates fresh IV, and hides raw Key',
   expect(await page.getByLabel('IV / Nonce', { exact: true }).inputValue()).not.toBe(ivHex);
 
   await page.getByLabel('加密模式', { exact: true }).selectOption('CBC');
-  await expect(page.getByLabel('CBC Padding', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('CBC / ECB Padding', { exact: true })).toBeVisible();
   await expect(page.getByLabel('GCM Tag 格式', { exact: true })).toHaveCount(0);
   await page.getByLabel('密钥长度', { exact: true }).selectOption('128');
   await page.getByLabel('Key 编码', { exact: true }).selectOption('utf8');
