@@ -234,3 +234,32 @@ test('AES advanced UI supports Java CBC, generates fresh IV, and hides raw Key',
   await page.getByRole('button', { name: '清空', exact: true }).click();
   await expect(keyField).toHaveValue('');
 });
+
+
+test('Java ECB preset hides IV and roundtrips UTF-8 Base64', async ({ page }) => {
+  await tool(page, 'aes');
+  await page.getByRole('button', { name: 'Java ECB/PKCS5' }).click();
+  await expect(page.getByLabel('AES 工作模式', { exact: true })).toHaveValue('advanced');
+  await expect(page.getByLabel('加密模式', { exact: true })).toHaveValue('ECB');
+  await expect(page.getByLabel('密钥长度', { exact: true })).toHaveValue('256');
+  await expect(page.getByLabel('Key 编码', { exact: true })).toHaveValue('utf8');
+  await expect(page.getByLabel('密文编码', { exact: true })).toHaveValue('base64');
+  await expect(page.getByLabel('CBC / ECB Padding', { exact: true })).toHaveValue('pkcs7');
+  await expect(page.getByLabel('IV 编码', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('IV / Nonce', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '生成随机 IV' })).toHaveCount(0);
+  const key = page.getByLabel('原始 Key', { exact: true });
+  await expect(key).toHaveAttribute('type', 'password');
+  await key.fill('550e8400e29b41d4a716446655440000');
+  const message = '你好 Java ECB 👋';
+  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill(message);
+  await process(page);
+  const encoded = await output(page).inputValue();
+  expect(encoded).toMatch(/^[A-Za-z0-9+/]+=*$/);
+  expect(Buffer.from(encoded, 'base64').length % 16).toBe(0);
+  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill(encoded);
+  await page.getByRole('button', { name: '解密', exact: true }).click();
+  await process(page);
+  await expect(output(page)).toHaveValue(message);
+  await expect(page.locator('.warning-banner')).toContainText('ECB');
+});

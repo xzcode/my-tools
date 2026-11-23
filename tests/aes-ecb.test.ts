@@ -1,0 +1,90 @@
+import { describe, it, expect } from 'vitest';
+import { createCipheriv, createDecipheriv } from 'node:crypto';
+import { executeTool } from '../src/core/engine';
+import { defaultOptions, getTool } from '../src/core/catalog';
+import type { OptionValue } from '../src/core/types';
+
+const javaKey = '550e8400e29b41d4a716446655440000'; // 32 ASCII bytes (UUID without hyphens)
+const java: Record<string, OptionValue> = {
+  profile: 'advanced', cipherMode: 'ECB', keySize: '256',
+  keyEncoding: 'utf8', rawKey: javaKey,
+  dataEncoding: 'utf8', cipherEncoding: 'base64', padding: 'pkcs7',
+};
+function run(input: string, action: 'encrypt' | 'decrypt', overrides: Record<string, OptionValue> = {}) {
+  const tool = getTool('aes')!;
+  return executeTool({ toolId: 'aes', action, input, options: { ...defaultOptions(tool), ...java, ...overrides } });
+}
+function javaEncrypt(text: string, key = Buffer.from(javaKey)): string {
+  const cipher = createCipheriv('aes-' + (key.length * 8) + '-ecb', key, null);
+  return Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]).toString('base64');
+}
+
+describe('Java AES/ECB/PKCS5Padding legacy compatibility', () => {
+  it('matches Java/Node AES-256-ECB Base64 for Unicode and block boundaries', async () => {
+    for (const message of ['', 'hello', '1234567890123456', 'a'.repeat(33), '你好，Java 数据 👋', '5'.repeat(256)]) {
+      const ciphertext = javaEncrypt(message);
+      expect((await run(message, 'encrypt')).output).toBe(ciphertext);
+      expect((await run(ciphertext, 'decrypt')).output).toBe(message);
+    }
+  });
+
+  it('decrypts external Java Base64 with exact UTF-8 Key without IV', async () => {
+    const external = javaEncrypt('来自 Java 的中文 👋');
+    expect((await run(external, 'decrypt', { iv: 'totally invalid ignored iv', ivEncoding: 'hex' })).output).toBe('来自 Java 的中文 👋');
+    expect((await run(external, 'decrypt')).warnings?.join('')).toContain('仅用于兼容');
+  });
+
+  it('matches NIST AES-128-ECB NoPadding vector exactly', async () => {
+    const plain = '6bc1bee22e409f96e93d7e117393172a';
+    const expected = '3ad77bb40d7a3660a89ecaf32466ef97';
+    const settings = { keySize: '128', rawKey: '2b7e151628aed2a6abf7158809cf4f3c', keyEncoding: 'hex', padding: 'none', dataEncoding: 'hex', cipherEncoding: 'hex' };
+    expect((await run(plain, 'encrypt', settings)).output).toBe(expected);
+    expect((await run(expected, 'decrypt', settings)).output).toBe(plain);
+    expect((await run('', 'encrypt', settings)).output).toBe('');
+    expect((await run('', 'decrypt', settings)).output).toBe('');
+  });
+
+  it('compares independently generated AES-128/192/256 PKCS7 ciphertext', async () => {
+    for (const bits of [128, 192, 256]) {
+      const key = Buffer.alloc(bits / 8, 0x51);
+      const settings = { keySize: String(bits), keyEncoding: 'base64', rawKey: key.toString('base64') };
+      const message = 'cross-platform 中文 AES 👋';
+      const external = javaEncrypt(message, key);
+      expect((await run(message, 'encrypt', settings)).output).toBe(external);
+      expect((await run(external, 'decrypt', settings)).output).toBe(message);
+    }
+  });
+
+  it('handles ECB NoPadding binary data with multiple blocks', async () => {
+    const plaintext = Buffer.from('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f', 'hex');
+    const cipher = createCipheriv('aes-256-ecb', Buffer.from(javaKey), null);
+    cipher.setAutoPadding(false);
+    const reference = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+    const settings = { dataEncoding: 'base64', cipherEncoding: 'base64', padding: 'none' };
+    expect((await run(plaintext.toString('base64'), 'encrypt', settings)).output).toBe(reference.toString('base64'));
+    expect((await run(reference.toString('base64'), 'decrypt', settings)).output).toBe(plaintext.toString('base64'));
+    const decrypt = createDecipheriv('aes-256-ecb', Buffer.from(javaKey), null);
+    decrypt.setAutoPadding(false);
+    expect(Buffer.concat([decrypt.update(reference), decrypt.final()])).toEqual(plaintext);
+  });
+
+  it('rejects invalid Key, ciphertext length and padding', async () => {
+    await expect(run('ok', 'encrypt', { rawKey: '550e8400-e29b-41d4-a716-446655440000' })).rejects.toThrow('Key 长度');
+    await expect(run('ok', 'encrypt', { rawKey: 'abc' })).rejects.toThrow('Key 长度');
+    await expect(run('AQID', 'decrypt')).rejects.toThrow('16 字节');
+    await expect(run('abc', 'encrypt', { padding: 'none' })).rejects.toThrow('16 字节');
+    const noPaddingCipher = (await run('00'.repeat(16), 'encrypt', { padding: 'none', dataEncoding: 'hex', cipherEncoding: 'hex' })).output;
+    await expect(run(noPaddingCipher, 'decrypt', { padding: 'pkcs7', cipherEncoding: 'hex' })).rejects.toThrow('填充校验失败');
+  });
+
+  it('does not affect existing simple-mode AES or GCM/CBC branches', async () => {
+    const pw = 'a reasonably long test passphrase';
+    const old = await executeTool({toolId:'aes',action:'encrypt',input:'old secret',options:{password:pw}});
+    expect(JSON.parse(old.output).format).toBe('my-tools-aes-gcm');
+    expect((await executeTool({toolId:'aes',action:'decrypt',input:old.output,options:{password:pw}})).output).toBe('old secret');
+  });
+
+  it('bounds costly compatibility encryption to short texts', async () => {
+    await expect(run('x'.repeat(256 * 1024 + 1), 'encrypt')).rejects.toThrow('256 KiB');
+  });
+});
