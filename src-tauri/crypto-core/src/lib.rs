@@ -1,5 +1,6 @@
 //! Offline crypto operations backed by OpenSSL. No shell commands, network,
 //! or user-defined algorithm execution. The desktop adapter owns file access.
+mod extra;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use foreign_types::ForeignTypeRef;
 use openssl::{
@@ -162,6 +163,15 @@ fn key_bytes(text: &str, encoding: &str) -> Res<Vec<u8>> {
     }
 }
 fn private(text: &str, encoding: &str, pass: &str) -> Res<PKey<Private>> {
+    if text.trim_start().starts_with('{') {
+        return extra::parse_jwk_private(text);
+    }
+    if text
+        .trim_start()
+        .starts_with("-----BEGIN OPENSSH PRIVATE KEY-----")
+    {
+        return extra::parse_ssh_private(text, pass);
+    }
     let data = key_bytes(text, encoding)?;
     // Always pass an explicit passphrase (including empty), never a terminal prompt.
     let result = if data.starts_with(b"-----BEGIN ") {
@@ -174,6 +184,12 @@ fn private(text: &str, encoding: &str, pass: &str) -> Res<PKey<Private>> {
     result.map_err(|_| "无法解析私钥；检查格式、编码及私钥口令".into())
 }
 fn public(text: &str, encoding: &str) -> Res<PKey<Public>> {
+    if text.trim_start().starts_with('{') {
+        return extra::parse_jwk_public(text);
+    }
+    if text.trim_start().starts_with("ssh-") {
+        return extra::parse_ssh_public(text);
+    }
     let data = key_bytes(text, encoding)?;
     let result = if data.starts_with(b"-----BEGIN ") {
         PKey::public_key_from_pem(&data)
@@ -320,6 +336,23 @@ fn file(name: &str, data: Vec<u8>, pem: bool) -> Res<KeyFile> {
     })
 }
 fn export_private(key: &PKeyRef<Private>, format: &str, pem: bool, pass: &str) -> Res<KeyFile> {
+    if format == "JWK" {
+        if !pass.is_empty() {
+            return Err("JWK 不支持私钥口令，请选择 PKCS8 或 OpenSSH".into());
+        }
+        return file(
+            "private_key.jwk",
+            serde_json::to_vec_pretty(&extra::jwk_private(key)?).map_err(|e| e.to_string())?,
+            true,
+        );
+    }
+    if format == "OpenSSH" {
+        return file(
+            "private_key.openssh",
+            extra::ssh_private(key, pass)?.into_bytes(),
+            true,
+        );
+    }
     let data = match format {
         "PKCS8" => {
             if pass.is_empty() {
@@ -369,6 +402,16 @@ fn export_private(key: &PKeyRef<Private>, format: &str, pem: bool, pass: &str) -
     )
 }
 fn export_public<T: HasPublic>(key: &PKeyRef<T>, format: &str, pem: bool) -> Res<KeyFile> {
+    if format == "JWK" {
+        return file(
+            "public_key.jwk",
+            serde_json::to_vec_pretty(&extra::jwk_public(key)?).map_err(|e| e.to_string())?,
+            true,
+        );
+    }
+    if format == "OpenSSH" {
+        return file("public_key.pub", extra::ssh_public(key)?.into_bytes(), true);
+    }
     let data = match format {
         "SPKI" => {
             if pem {
@@ -797,11 +840,11 @@ fn signature(r: &Request) -> Res<ResultData> {
 }
 fn asymmetric(r: &Request) -> Res<ResultData> {
     let alg = r.opt("algorithm", "RSA-OAEP");
-    let rsa = alg != "SM2-ASN1";
+    let rsa = !alg.starts_with("SM2-");
     let padding = match alg {
         "RSA-OAEP" => Padding::PKCS1_OAEP,
         "RSA-PKCS1" => Padding::PKCS1,
-        "SM2-ASN1" => Padding::NONE,
+        "SM2-ASN1" | "SM2-C1C3C2" | "SM2-C1C2C3" => Padding::NONE,
         _ => return Err("不支持的加密算法".into()),
     };
     let enc = r.opt("outputEncoding", "base64");
@@ -833,6 +876,9 @@ fn asymmetric(r: &Request) -> Res<ResultData> {
         let mut out = vec![0; ssl(op.encrypt_len(&data))?];
         let n = ssl(op.encrypt(&data, &mut out))?;
         out.truncate(n);
+        if !rsa && alg != "SM2-ASN1" {
+            out = extra::sm2_convert(&out, "ASN1", alg.strip_prefix("SM2-").unwrap())?;
+        }
         return Ok(text_output(render(&out, enc)?, "加密完成", warnings));
     }
     if r.action != "decrypt" {
@@ -860,7 +906,10 @@ fn asymmetric(r: &Request) -> Res<ResultData> {
             }
         }
     }
-    let data = bytes(&r.input, enc)?;
+    let mut data = bytes(&r.input, enc)?;
+    if !rsa && alg != "SM2-ASN1" {
+        data = extra::sm2_convert(&data, alg.strip_prefix("SM2-").unwrap(), "ASN1")?;
+    }
     let mut out = vec![0; ssl(op.decrypt_len(&data))?];
     let n = ssl(op.decrypt(&data, &mut out))?;
     out.truncate(n);
@@ -872,6 +921,12 @@ fn asymmetric(r: &Request) -> Res<ResultData> {
 }
 fn symmetric(r: &Request) -> Res<ResultData> {
     let alg = r.opt("algorithm", "AES-256-GCM");
+    if matches!(
+        alg,
+        "SM4-GCM" | "XChaCha20-Poly1305" | "DES-ECB" | "DES-CBC"
+    ) {
+        return extra::extended_symmetric(r);
+    }
     let cipher = match alg {
         "AES-128-CTR" => Cipher::aes_128_ctr(),
         "AES-192-CTR" => Cipher::aes_192_ctr(),
@@ -969,6 +1024,9 @@ fn symmetric(r: &Request) -> Res<ResultData> {
 }
 fn hash_tool(r: &Request) -> Res<ResultData> {
     let alg = r.opt("algorithm", "SHA256");
+    if matches!(alg, "BLAKE3" | "CRC32") {
+        return extra::extra_hash(r);
+    }
     let data = bytes(&r.input, r.opt("dataEncoding", "utf8"))?;
     let md = digest(alg)?;
     let out = if r.action == "hmac" {
@@ -1008,6 +1066,8 @@ fn kdf(r: &Request) -> Res<ResultData> {
             digest(r.opt("digest", "SHA256"))?,
             &mut key,
         ))?;
+    } else if alg == "Argon2id" {
+        extra::argon(r, &pass, &salt, &mut key)?;
     } else if alg == "HKDF" {
         let digest = digest(r.opt("digest", "SHA256"))?;
         if size > 255 * digest.size() {
@@ -1047,6 +1107,63 @@ fn kdf(r: &Request) -> Res<ResultData> {
     ))
 }
 fn certificate(r: &Request) -> Res<ResultData> {
+    use openssl::x509::{
+        extension::{BasicConstraints, KeyUsage, SubjectAlternativeName},
+        store::X509StoreBuilder,
+        verify::X509VerifyParam,
+        X509PurposeId, X509StoreContext,
+    };
+    if r.action == "verify-chain" {
+        let leaf = extra::certs(&r.input, r.opt("keyEncoding", "auto"))?;
+        if leaf.len() != 1 {
+            return Err("主输入应为一张待验证证书；中间证书放入证书链输入框".into());
+        }
+        let roots = extra::certs(r.opt("trustRoots", ""), "auto")?;
+        let mut store = ssl(X509StoreBuilder::new())?;
+        for root in roots {
+            ssl(store.add_cert(root))?;
+        }
+        let mut param = ssl(X509VerifyParam::new())?;
+        let host = r.opt("verifyHost", "");
+        if !host.is_empty() {
+            ssl(param.set_purpose(X509PurposeId::SSL_SERVER))?;
+            if let Ok(ip) = host.parse() {
+                ssl(param.set_ip(ip))?;
+            } else {
+                ssl(param.set_host(host))?;
+            }
+        }
+        ssl(store.set_param(&param))?;
+        let store = store.build();
+        let mut intermediates = ssl(openssl::stack::Stack::new())?;
+        if !r.secondary_input.trim().is_empty() {
+            for c in extra::certs(&r.secondary_input, "auto")? {
+                ssl(intermediates.push(c))?;
+            }
+        }
+        let mut ctx = ssl(X509StoreContext::new())?;
+        let (valid, reason, depth, count) = ssl(ctx.init(&store, &leaf[0], &intermediates, |c| {
+            let valid = c.verify_cert()?;
+            Ok((
+                valid,
+                c.error().error_string().to_string(),
+                c.error_depth(),
+                c.chain().map(|chain| chain.len()).unwrap_or(0),
+            ))
+        }))?;
+        return json_output(
+            json!({"valid":valid,"reason":reason,"errorDepth":depth,"chainLength":count,"hostname":host,"trust":"explicit-local-roots","revocationChecked":false}),
+            if valid {
+                "证书链验证通过"
+            } else {
+                "证书链验证失败"
+            },
+            vec![
+                "仅根据指定的本地信任根、当前时间和可选主机名验证；未执行在线 OCSP/CRL 吊销检查。"
+                    .into(),
+            ],
+        );
+    }
     if r.action == "inspect" {
         let data = key_bytes(&r.input, r.opt("keyEncoding", "auto"))?;
         let cert = if data.starts_with(b"-----BEGIN ") {
@@ -1066,8 +1183,20 @@ fn certificate(r: &Request) -> Res<ResultData> {
                 })
                 .collect::<Vec<_>>()
         };
+        let now = ssl(Asn1Time::days_from_now(0))?;
+        let status = if ssl(cert.not_before().compare(&now))? == std::cmp::Ordering::Greater {
+            "尚未生效"
+        } else if ssl(cert.not_after().compare(&now))? == std::cmp::Ordering::Less {
+            "已过期"
+        } else {
+            "有效期内"
+        };
+        let san=cert.subject_alt_names().map(|entries|entries.iter().filter_map(|entry|{
+            if let Some(dns)=entry.dnsname(){Some(json!({"type":"DNS","value":dns}))}
+            else if let Some(ip)=entry.ipaddress(){match ip.len(){4=>Some(json!({"type":"IP","value":std::net::Ipv4Addr::from(<[u8;4]>::try_from(ip).ok()?).to_string()})),16=>Some(json!({"type":"IP","value":std::net::Ipv6Addr::from(<[u8;16]>::try_from(ip).ok()?).to_string()})),_=>None}}else{None}
+        }).collect::<Vec<_>>()).unwrap_or_default();
         return json_output(
-            json!({"subject":names(cert.subject_name()),"issuer":names(cert.issuer_name()),"notBefore":cert.not_before().to_string(),"notAfter":cert.not_after().to_string(),"serial":ssl(cert.serial_number().to_bn().and_then(|n|n.to_hex_str()))?.to_string(),"publicKeyFingerprintSha256":fingerprint(&pk)?,"certificateSha256":hex(&ssl(cert.digest(MessageDigest::sha256()))?),"publicKey":String::from_utf8_lossy(&ssl(pk.public_key_to_pem())?)}),
+            json!({"validity":status,"subjectAltNames":san,"subject":names(cert.subject_name()),"issuer":names(cert.issuer_name()),"notBefore":cert.not_before().to_string(),"notAfter":cert.not_after().to_string(),"serial":ssl(cert.serial_number().to_bn().and_then(|n|n.to_hex_str()))?.to_string(),"publicKeyFingerprintSha256":fingerprint(&pk)?,"certificateSha256":hex(&ssl(cert.digest(MessageDigest::sha256()))?),"publicKey":String::from_utf8_lossy(&ssl(pk.public_key_to_pem())?)}),
             "证书解析完成",
             vec!["解析证书不等于验证证书链或信任关系。".into()],
         );
@@ -1103,6 +1232,35 @@ fn certificate(r: &Request) -> Res<ResultData> {
         let mut builder = ssl(X509ReqBuilder::new())?;
         ssl(builder.set_subject_name(&name))?;
         ssl(builder.set_pubkey(&key))?;
+        let mut san = SubjectAlternativeName::new();
+        let mut has_san = false;
+        for name in r
+            .opt("sanDns", "")
+            .split(',')
+            .map(str::trim)
+            .filter(|x| !x.is_empty())
+        {
+            san.dns(name);
+            has_san = true;
+        }
+        for ip in r
+            .opt("sanIp", "")
+            .split(',')
+            .map(str::trim)
+            .filter(|x| !x.is_empty())
+        {
+            if ip.parse::<std::net::IpAddr>().is_err() {
+                return Err("SAN IP 地址无效".into());
+            }
+            san.ip(ip);
+            has_san = true;
+        }
+        if has_san {
+            let ext = ssl(san.build(&builder.x509v3_context(None)))?;
+            let mut extensions = ssl(openssl::stack::Stack::new())?;
+            ssl(extensions.push(ext))?;
+            ssl(builder.add_extensions(&extensions))?;
+        }
         ssl(builder.sign(&key, md))?;
         let req: X509Req = builder.build();
         let f = file("certificate.csr", ssl(req.to_pem())?, true)?;
@@ -1132,12 +1290,53 @@ fn certificate(r: &Request) -> Res<ResultData> {
     ssl(builder.set_pubkey(&key))?;
     ssl(builder.set_not_before(&start))?;
     ssl(builder.set_not_after(&end))?;
+    let ca = r.check("isCa");
+    let mut constraints = BasicConstraints::new();
+    constraints.critical();
+    if ca {
+        constraints.ca();
+    }
+    ssl(builder.append_extension(ssl(constraints.build())?))?;
+    if ca {
+        ssl(builder.append_extension(ssl(KeyUsage::new()
+            .critical()
+            .key_cert_sign()
+            .crl_sign()
+            .build())?))?;
+    }
+    let mut san = SubjectAlternativeName::new();
+    let mut has_san = false;
+    for name in r
+        .opt("sanDns", "")
+        .split(',')
+        .map(str::trim)
+        .filter(|x| !x.is_empty())
+    {
+        san.dns(name);
+        has_san = true;
+    }
+    for ip in r
+        .opt("sanIp", "")
+        .split(',')
+        .map(str::trim)
+        .filter(|x| !x.is_empty())
+    {
+        if ip.parse::<std::net::IpAddr>().is_err() {
+            return Err("SAN IP 地址无效".into());
+        }
+        san.ip(ip);
+        has_san = true;
+    }
+    if has_san {
+        let extension = ssl(san.build(&builder.x509v3_context(None, None)))?;
+        ssl(builder.append_extension(extension))?;
+    }
     ssl(builder.sign(&key, md))?;
     let f = file("certificate.pem", ssl(builder.build().to_pem())?, true)?;
     json_output(
         json!({"files":[f],"commonName":common,"validDays":days}),
         "自签名证书已生成",
-        vec!["自签名证书不代表可信 CA 签发的 TLS 证书；当前不自动添加 SAN 或 CA 扩展。".into()],
+        vec!["自签名证书需要由使用者明确配置信任；不代表公共可信 CA 签发的 TLS 证书。".into()],
     )
 }
 pub fn execute(r: &Request) -> Res<ResultData> {
@@ -1151,6 +1350,20 @@ pub fn execute(r: &Request) -> Res<ResultData> {
         "crypto-hash" => hash_tool(r),
         "kdf" if r.action == "derive" => kdf(r),
         "certificate" => certificate(r),
+        "keystore" => extra::keystore(r),
+        "sm2-format" if r.action == "convert" => {
+            let data = bytes(&r.input, r.opt("dataEncoding", "hex"))?;
+            let out = extra::sm2_convert(
+                &data,
+                r.opt("sourceFormat", "ASN1"),
+                r.opt("targetFormat", "C1C3C2"),
+            )?;
+            Ok(text_output(
+                render(&out, r.opt("outputEncoding", "hex"))?,
+                "SM2 密文格式转换完成",
+                vec!["格式转换不执行解密或完整性验证。".into()],
+            ))
+        }
         _ => Err("未知密码学工具".into()),
     }
 }
@@ -1181,63 +1394,203 @@ pub fn store_key_directory(path: &Path, directory: PathBuf) -> Res<()> {
 }
 // The adapter supplies a user-selected parent folder. Never overwrite an existing
 // key directory; keep private-key files and their containing directory owner-only on Unix.
+pub fn valid_key_name(s: &str) -> bool {
+    !s.is_empty()
+        && s.trim() == s
+        && s != "."
+        && s != ".."
+        && !s.ends_with(['.', ' '])
+        && !s
+            .chars()
+            .any(|c| c.is_control() || "<>:\"/\\|?*".contains(c))
+        && !matches!(
+            s.split('.')
+                .next()
+                .unwrap_or("")
+                .to_ascii_uppercase()
+                .as_str(),
+            "CON"
+                | "PRN"
+                | "AUX"
+                | "NUL"
+                | "COM1"
+                | "COM2"
+                | "COM3"
+                | "COM4"
+                | "COM5"
+                | "COM6"
+                | "COM7"
+                | "COM8"
+                | "COM9"
+                | "LPT1"
+                | "LPT2"
+                | "LPT3"
+                | "LPT4"
+                | "LPT5"
+                | "LPT6"
+                | "LPT7"
+                | "LPT8"
+                | "LPT9"
+        )
+}
+pub const KEY_FILE_NAMES: &[&str] = &[
+    "private_key.pem",
+    "private_key.der",
+    "public_key.pem",
+    "public_key.der",
+    "secret_key.txt",
+    "certificate.csr",
+    "certificate.pem",
+    "private_key.jwk",
+    "public_key.jwk",
+    "private_key.openssh",
+    "public_key.pub",
+    "keystore.p12",
+    "keystore.jks",
+];
+
+/// Only app-created sets with a matching manifest and ordinary known files may
+/// be renamed or deleted. A folder containing extra files must be handled in the OS file manager.
+fn managed_key_directory(root: &Path, name: &str) -> Res<(PathBuf, Vec<String>)> {
+    if !valid_key_name(name) {
+        return Err("密钥组名称无效".into());
+    }
+    let root = root.canonicalize().map_err(|e| e.to_string())?;
+    let dir = root.join(name);
+    let meta = fs::symlink_metadata(&dir).map_err(|e| e.to_string())?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        return Err("仅支持普通密钥组目录".into());
+    }
+    let dir = dir.canonicalize().map_err(|e| e.to_string())?;
+    if dir.parent() != Some(root.as_path()) {
+        return Err("密钥目录超出保存路径".into());
+    }
+    let manifest = dir.join("metadata.json");
+    let meta = fs::symlink_metadata(&manifest).map_err(|_| "不是 My Tools 创建的密钥组")?;
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return Err("密钥组清单无效".into());
+    }
+    let raw: Value = serde_json::from_slice(&fs::read(&manifest).map_err(|e| e.to_string())?)
+        .map_err(|_| "密钥组清单无效")?;
+    if raw["name"].as_str() != Some(name) {
+        return Err("密钥组名称与清单不匹配，请在文件管理器处理".into());
+    }
+    let expected = raw["files"].as_array().ok_or("密钥组清单缺少文件列表")?;
+    let mut files = BTreeSet::new();
+    for f in expected {
+        let f = f.as_str().ok_or("密钥组清单无效")?;
+        if !KEY_FILE_NAMES.contains(&f) || !files.insert(f.to_string()) {
+            return Err("密钥组清单包含无效文件".into());
+        }
+    }
+    if files.is_empty() {
+        return Err("空密钥组".into());
+    }
+    let mut seen = BTreeSet::new();
+    for item in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+        let item = item.map_err(|e| e.to_string())?;
+        let file = item
+            .file_name()
+            .into_string()
+            .map_err(|_| "密钥组包含未知文件")?;
+        let meta = fs::symlink_metadata(item.path()).map_err(|e| e.to_string())?;
+        if !meta.is_file() || meta.file_type().is_symlink() {
+            return Err("密钥组含目录或链接，请使用文件管理器".into());
+        }
+        if file != "metadata.json" && !files.contains(&file) {
+            return Err("密钥组包含其他文件，请使用文件管理器，未修改任何文件".into());
+        }
+        seen.insert(file);
+    }
+    if !files.iter().all(|f| seen.contains(f)) {
+        return Err("密钥组清单中的文件缺失，请使用文件管理器".into());
+    }
+    Ok((dir, files.into_iter().collect()))
+}
+pub fn is_managed_key_directory(root: &Path, name: &str) -> bool {
+    managed_key_directory(root, name).is_ok()
+}
+pub fn rename_key_directory(root: &Path, name: &str, new_name: &str) -> Res<PathBuf> {
+    if !valid_key_name(new_name) {
+        return Err("新密钥组名称无效".into());
+    }
+    let (old, files) = managed_key_directory(root, name)?;
+    if name == new_name {
+        return Ok(old);
+    }
+    let parent = old.parent().ok_or("密钥目录无效")?;
+    // Create a new non-existing directory first; never overwrite an existing set.
+    let new = parent.join(new_name);
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder
+        .create(&new)
+        .map_err(|e| format!("无法创建新目录（不会覆盖已有目录）：{e}"))?;
+    let mut copied = Vec::new();
+    let result = (|| -> Res<()> {
+        for file in &files {
+            let src = old.join(file);
+            let dst = new.join(file);
+            let mut opts = fs::OpenOptions::new();
+            opts.create_new(true).write(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600);
+            }
+            let mut f = opts.open(&dst).map_err(|e| e.to_string())?;
+            copied.push(dst);
+            let mut source = fs::File::open(src).map_err(|e| e.to_string())?;
+            std::io::copy(&mut source, &mut f)
+                .and_then(|_| f.sync_all())
+                .map_err(|e| e.to_string())?;
+        }
+        let manifest = new.join("metadata.json");
+        let mut f = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&manifest)
+            .map_err(|e| e.to_string())?;
+        copied.push(manifest);
+        let data = serde_json::to_vec_pretty(&json!({"name":new_name,"files":files}))
+            .map_err(|e| e.to_string())?;
+        f.write_all(&data)
+            .and_then(|_| f.sync_all())
+            .map_err(|e| e.to_string())
+    })();
+    if let Err(e) = result {
+        for p in copied {
+            let _ = fs::remove_file(p);
+        }
+        let _ = fs::remove_dir(&new);
+        return Err(e);
+    }
+    // Re-check original contents before removing any known files.
+    // If removal fails, keep the newly copied set, report the partial outcome.
+    delete_key_directory(root, name)
+        .map_err(|e| format!("新密钥组已复制至 {}，原组清理失败：{e}", new.display()))?;
+    Ok(new)
+}
+pub fn delete_key_directory(root: &Path, name: &str) -> Res<()> {
+    let (dir, files) = managed_key_directory(root, name)?;
+    for file in files {
+        fs::remove_file(dir.join(file)).map_err(|e| format!("删除失败：{e}"))?;
+    }
+    fs::remove_file(dir.join("metadata.json")).map_err(|e| e.to_string())?;
+    fs::remove_dir(dir).map_err(|e| e.to_string())
+}
 pub fn save_key_files(parent: &Path, name: &str, files: &[KeyFile]) -> Res<PathBuf> {
-    let valid_name = |s: &str| {
-        !s.is_empty()
-            && s.trim() == s
-            && s != "."
-            && s != ".."
-            && !s.ends_with(['.', ' '])
-            && !s
-                .chars()
-                .any(|c| c.is_control() || "<>:\"/\\|?*".contains(c))
-            && !matches!(
-                s.split('.')
-                    .next()
-                    .unwrap_or("")
-                    .to_ascii_uppercase()
-                    .as_str(),
-                "CON"
-                    | "PRN"
-                    | "AUX"
-                    | "NUL"
-                    | "COM1"
-                    | "COM2"
-                    | "COM3"
-                    | "COM4"
-                    | "COM5"
-                    | "COM6"
-                    | "COM7"
-                    | "COM8"
-                    | "COM9"
-                    | "LPT1"
-                    | "LPT2"
-                    | "LPT3"
-                    | "LPT4"
-                    | "LPT5"
-                    | "LPT6"
-                    | "LPT7"
-                    | "LPT8"
-                    | "LPT9"
-            )
-    };
-    if !valid_name(name) || files.is_empty() {
+    if !valid_key_name(name) || files.is_empty() {
         return Err("请输入合法的密钥名称，并先生成或转换密钥".into());
     }
     let mut seen = BTreeSet::new();
     let mut prepared = Vec::new();
     for f in files {
-        if !matches!(
-            f.name.as_str(),
-            "private_key.pem"
-                | "private_key.der"
-                | "public_key.pem"
-                | "public_key.der"
-                | "secret_key.txt"
-                | "certificate.csr"
-                | "certificate.pem"
-        ) || !seen.insert(f.name.as_str())
-        {
+        if !KEY_FILE_NAMES.contains(&f.name.as_str()) || !seen.insert(f.name.as_str()) {
             return Err("导出文件名无效或重复".into());
         }
         let data = match f.encoding.as_str() {
@@ -1749,5 +2102,32 @@ mod tests {
         assert_eq!(load_key_directory(&config).unwrap(), Some(first));
         store_key_directory(&config, second.clone()).unwrap();
         assert_eq!(load_key_directory(&config).unwrap(), Some(second));
+    }
+    #[test]
+    fn managed_key_rename_and_delete_never_touch_unrelated_files() {
+        let root = tempfile::tempdir().unwrap();
+        let file = KeyFile {
+            name: "secret_key.txt".into(),
+            data: "test secret".into(),
+            encoding: "utf8".into(),
+        };
+        let old = save_key_files(root.path(), "first", &[file.clone()]).unwrap();
+        let other = save_key_files(root.path(), "occupied", &[file]).unwrap();
+        assert!(rename_key_directory(root.path(), "first", "occupied").is_err());
+        fs::write(old.join("notes.txt"), "do not delete").unwrap();
+        assert!(delete_key_directory(root.path(), "first").is_err());
+        assert!(rename_key_directory(root.path(), "first", "new").is_err());
+        assert!(old.join("notes.txt").is_file());
+        fs::remove_file(old.join("notes.txt")).unwrap();
+        let new = rename_key_directory(root.path(), "first", "renamed").unwrap();
+        assert!(!old.exists());
+        assert_eq!(
+            fs::read_to_string(new.join("secret_key.txt")).unwrap(),
+            "test secret"
+        );
+        assert!(is_managed_key_directory(root.path(), "renamed"));
+        delete_key_directory(root.path(), "renamed").unwrap();
+        assert!(!new.exists());
+        assert!(other.join("secret_key.txt").exists());
     }
 }

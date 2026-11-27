@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-crypto-rename-key-set"
+description = "Enables the crypto_rename_key_set command without any pre-configured scope."
+commands.allow = ["crypto_rename_key_set"]
+
+[[permission]]
+identifier = "deny-crypto-rename-key-set"
+description = "Denies the crypto_rename_key_set command without any pre-configured scope."
+commands.deny = ["crypto_rename_key_set"]

@@ -137,7 +137,7 @@ export function useWorkspace() {
   function removeTemplate(id:string){state.value.templates=state.value.templates.filter(t=>t.id!==id);}
   function clearActive(){
     const t=active.value;stop(t.id);t.input='';t.secondaryInput='';t.result=null;t.error='';t.stale=false;t.elapsed=0;t.outputView='text';t.fileName='';t.binarySourceName='';t.batch=[];t.batchVisible=false;
-    for(const k of ['key','password','rawKey','iv','aad','keyPassphrase','exportPassphrase','signature'])if(k in t.options)t.options[k]='';
+    for(const k of ['key','password','rawKey','iv','aad','keyPassphrase','exportPassphrase','storePassphrase','entryPassphrase','signature'])if(k in t.options)t.options[k]='';
   }
   function requestFor(t:ToolTab):ToolRequest{return{toolId:t.toolId,action:t.action,input:t.input,secondaryInput:t.secondaryInput,options:{...t.options}};}
   function runnerFor(id:string){let r=runners.get(id);if(!r){r=useToolRunner();runners.set(id,r);}return r;}

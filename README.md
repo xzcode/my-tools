@@ -24,14 +24,16 @@
 | Diff | 文本行/词对比、JSON 结构对比 |
 | 数据转换 | JSON、YAML、CSV 互转 |
 | cURL | 本地解析请求、参数、Header、Body；不执行命令、不发送请求 |
-| 密钥生成 / 匹配 / 转换 | RSA、ECC、SM2、Ed25519/448、X25519/448、随机密钥；命名目录、持久化默认路径、PEM/DER |
+| 密钥生成 / 匹配 / 转换 | RSA、ECC、SM2、Ed25519/448、X25519/448、随机密钥；命名目录、持久化默认路径、PEM/DER/JWK/OpenSSH |
 | 数字签名与验签 | RSA-SHA1/SHA2/SHA3/PSS、ECDSA、SM2-SM3、EdDSA；原始内容、参数与 JSON 响应 |
-| 高级加解密 / 摘要 / KDF | RSA OAEP/PKCS1、SM2 ASN.1、SM4、ChaCha20、SHA3、SM3、PBKDF2/HKDF/scrypt |
-| 证书工具 | X.509 解析、CSR、自签名证书 |
+| 高级加解密 / 摘要 / KDF | RSA OAEP/PKCS1、SM2 ASN.1/C1C3C2/C1C2C3、SM4-GCM、DES、XChaCha20-Poly1305、BLAKE3/CRC32、PBKDF2/HKDF/scrypt/Argon2id |
+| 证书工具 | X.509 解析、CSR、自签名证书、SAN、显式本地信任根与域名验证 |
+| 密钥容器 | PKCS12/PFX、JKS 生成、解析、提取 |
+| SM2 密文格式转换 | ASN.1、C1C3C2、C1C2C3 互转 |
 | 国际手机号校验 | 默认中国 +86，国旗/区号搜索、多行校验、号码类型与 E.164 |
 | SVGA 动画预览 | 本地文件、画布、动画属性、播放暂停、逐帧、进度条及循环 |
 
-共有 **29 项工具**，支持复制、显式读取剪贴板、文件导入导出、批量处理、收藏、最近使用、搜索与深浅主题。
+共有 **31 项工具**，支持复制、显式读取剪贴板、文件导入导出、批量处理、收藏、最近使用、搜索与深浅主题。
 
 AES 简单模式使用 Web Crypto 认证加密和本项目自有 JSON 封装；高级模式接受原始 Key/IV，可与明确匹配参数的 Java/Node.js/Python AES GCM/CBC 实现互通。新增加 Java AES/ECB/PKCS5Padding 旧系统兼容及一键预设（ECB 无 IV、无完整性认证）。高级 CBC 无完整性认证；GCM 加密时同一 Key 下绝不能复用 IV。加密口令须自行保存，**丢失口令无法恢复明文**。密码生成使用安全随机源，不依赖 Math.random。最近使用仅记录工具名称/ID。所有工具均有独立多标签和历史记录；处理内容的跨进程保存需显式开启加密会话。
 
@@ -77,6 +79,7 @@ npm run dev
 ```bash
 npm run check
 npm run test:e2e
+cargo test --manifest-path src-tauri/crypto-core/Cargo.toml --locked
 cargo test --manifest-path src-tauri/Cargo.toml --locked
 npm run desktop:build
 ```

@@ -6,7 +6,7 @@ import type { ToolTab } from '../core/workspace';
 import type { ToolOption } from '../core/types';
 import { encodeBase64Bytes } from '../core/encoding';
 import { isDesktop, openBinaryFile, writeClipboard, saveTextFile } from '../platform/desktop';
-import { getKeyDirectory, chooseKeyDirectory, saveKeys, listKeys, readKey, openKeyDirectory, type KeyFile, type KeySet } from '../platform/crypto-tools';
+import { getKeyDirectory, chooseKeyDirectory, saveKeys, listKeys, readKey, openKeyDirectory, renameKeySet, deleteKeySet, type KeyFile, type KeySet } from '../platform/crypto-tools';
 
 const props=defineProps<{tab:ToolTab; running:boolean}>();
 const emit=defineEmits<{(e:'run'):void;(e:'clear'):void}>();
@@ -14,18 +14,24 @@ const tool=computed(()=>getTool(props.tab.toolId)!);
 const desktop=isDesktop(), directory=ref(''), savedDirectory=ref(''), savedName=ref(''), sets=ref<KeySet[]>([]);
 const selectedSet=ref(''), selectedFile=ref(''), libraryOpen=ref(false), notice=ref(''), error=ref(''), saving=ref(false);
 const revealed=ref<Record<string,boolean>>({});
+const manageAction=ref<'rename'|'delete'|''>(''),manageName=ref('');
+const managedSet=computed(()=>sets.value.find(s=>s.name===selectedSet.value)?.managed===true);
+const managing=ref(false);
 const opts=computed(()=>props.tab.options);
 const isGen=computed(()=>props.tab.toolId==='keygen');
 const isSignature=computed(()=>props.tab.toolId==='signature');
 const isCert=computed(()=>props.tab.toolId==='certificate');
+const isStore=computed(()=>props.tab.toolId==='keystore');
+const certGenerate=computed(()=>isCert.value&&['csr','self-sign'].includes(props.tab.action));
+const certVerify=computed(()=>isCert.value&&props.tab.action==='verify-chain');
 const alg=computed(()=>String(opts.value.algorithm??''));
 const isSecretGen=computed(()=>/^(AES-|SM4$|ChaCha20$|HMAC$)/.test(alg.value));
-const aead=computed(()=>alg.value.endsWith('-GCM')||alg.value==='ChaCha20-Poly1305');
-const keyInput=computed(()=>['keycheck','signature','asymmetric'].includes(props.tab.toolId)||(isCert.value&&props.tab.action!=='inspect'));
-const inputKey=computed(()=>['keyconvert','keycheck'].includes(props.tab.toolId)||(isCert.value&&props.tab.action==='inspect'));
-const needsInput=computed(()=>!isGen.value&&!(isCert.value&&props.tab.action!=='inspect'));
-const inputLabel=computed(()=>props.tab.toolId==='keycheck'?'公钥 / 证书':props.tab.toolId==='keyconvert'?'待转换密钥 / 证书':isCert.value?'X.509 证书':isSignature.value?'原始报文 / 待签名内容':props.tab.toolId==='kdf'?'口令 / 输入密钥':'输入内容');
-const secondaryLabel=computed(()=>props.tab.toolId==='keycheck'?'私钥':props.tab.toolId==='signature'?(props.tab.action==='sign'?'签名私钥':'验签公钥 / 证书'):props.tab.toolId==='asymmetric'?(props.tab.action==='encrypt'?'加密公钥 / 证书':'解密私钥'):'证书签发私钥');
+const aead=computed(()=>alg.value.endsWith('-GCM')||alg.value.endsWith('ChaCha20-Poly1305'));
+const keyInput=computed(()=>['keycheck','signature','asymmetric'].includes(props.tab.toolId)||certGenerate.value||certVerify.value||(isStore.value&&props.tab.action==='pack'));
+const inputKey=computed(()=>['keyconvert','keycheck'].includes(props.tab.toolId)||(isCert.value&&!certGenerate.value)||(isStore.value&&props.tab.action==='pack'));
+const needsInput=computed(()=>!isGen.value&&!certGenerate.value);
+const inputLabel=computed(()=>props.tab.toolId==='keycheck'?'公钥 / 证书':props.tab.toolId==='keyconvert'?'待转换密钥 / 证书':isCert.value?'X.509 证书':isStore.value?(props.tab.action==='pack'?'叶证书及证书链 PEM':'密钥容器（Base64 / Hex）'):isSignature.value?'原始报文 / 待签名内容':props.tab.toolId==='kdf'?'口令 / 输入密钥':'输入内容');
+const secondaryLabel=computed(()=>props.tab.toolId==='keycheck'?'私钥':props.tab.toolId==='signature'?(props.tab.action==='sign'?'签名私钥':'验签公钥 / 证书'):props.tab.toolId==='asymmetric'?(props.tab.action==='encrypt'?'加密公钥 / 证书':'解密私钥'):certVerify.value?'中间证书 PEM（可选）':isStore.value?'待打包私钥':'证书签发私钥');
 const outputObject=computed(()=>{try{return JSON.parse(props.tab.result?.output??'null') as Record<string,unknown>|null;}catch{return null;}});
 const files=computed<KeyFile[]>(()=>Array.isArray(outputObject.value?.files)?outputObject.value.files as KeyFile[]:[]);
 const visibleOptions=computed(()=>tool.value.options.filter((option:ToolOption)=>{
@@ -55,22 +61,33 @@ const visibleOptions=computed(()=>tool.value.options.filter((option:ToolOption)=
    if(k==='padding')return /-(CBC|ECB)$/.test(alg.value);
    if(['aad','aadEncoding'].includes(k))return aead.value;
  }
- if(id==='crypto-hash'&&['keyEncoding','rawKey'].includes(k))return props.tab.action==='hmac';
+ if(id==='crypto-hash'&&['keyEncoding','rawKey'].includes(k))return props.tab.action==='hmac'&&!['CRC32','BLAKE3'].includes(alg.value);
  if(id==='kdf'){
    if(k==='iterations')return alg.value==='PBKDF2';
    if(k==='digest')return alg.value==='PBKDF2'||alg.value==='HKDF';
    if(['info','infoEncoding'].includes(k))return alg.value==='HKDF';
    if(k.startsWith('scrypt'))return alg.value==='scrypt';
+   if(['memoryKiB','timeCost','parallelism'].includes(k))return alg.value==='Argon2id';
  }
  if(isCert.value){
-   if(k==='keyPassphrase')return props.tab.action!=='inspect';
-   if(['commonName','organization','organizationalUnit','countryCode','keyName'].includes(k))return props.tab.action!=='inspect';
-   if(k==='validDays')return props.tab.action==='self-sign';
+   if(k==='keyPassphrase')return certGenerate.value;
+   if(['commonName','organization','organizationalUnit','countryCode','keyName','sanDns','sanIp'].includes(k))return certGenerate.value;
+   if(['validDays','isCa'].includes(k))return props.tab.action==='self-sign';
+   if(['trustRoots','verifyHost'].includes(k))return certVerify.value;
+ }
+ if(isStore.value){
+   if(k==='entryPassphrase')return opts.value.storeFormat==='JKS'&&props.tab.action!=='inspect';
+   if(k==='alias')return props.tab.action==='pack'||(opts.value.storeFormat==='JKS'&&props.tab.action==='extract');
+   if(['keyEncoding','keyPassphrase'].includes(k))return props.tab.action==='pack';
+   if(k==='storeEncoding')return props.tab.action!=='pack';
+   if(k==='exportPassphrase')return props.tab.action==='extract';
+   if(k==='keyName')return props.tab.action!=='inspect';
  }
  return true;
 }));
 function setOption(key:string,value:string|number|boolean){props.tab.options[key]=value;}
 function setAction(value:string){props.tab.action=value;}
+async function importRoots(){const file=await attempt(()=>openBinaryFile());if(!file)return;const data=Uint8Array.from(file.bytes);try{const text=new TextDecoder('utf-8',{fatal:true}).decode(data).trim();if(text.startsWith('-----BEGIN CERTIFICATE-----')){props.tab.options.trustRoots=text;return;}}catch{}props.tab.options.trustRoots=encodeBase64Bytes(data);}
 function msg(reason:unknown){return reason instanceof Error?reason.message:String(reason);}
 async function attempt<T>(fn:()=>Promise<T>):Promise<T|undefined>{error.value='';try{return await fn();}catch(e){error.value=msg(e);return undefined;}}
 async function refresh(){
@@ -97,13 +114,16 @@ async function importInput(target:'input'|'secondaryInput'|'signature',asKey=fal
  if(asKey){
    try{
      const decoded=new TextDecoder('utf-8',{fatal:true}).decode(data).trim();
-     if(decoded.startsWith('-----BEGIN ')||/^[A-Za-z0-9+/=\s]+$/.test(decoded))value=decoded;
+     if(decoded.startsWith('-----BEGIN ')||decoded.startsWith('{')||decoded.startsWith('ssh-')||/^[A-Za-z0-9+/=\s]+$/.test(decoded))value=decoded;
    }catch{/* binary DER, already encoded */}
    tab.options.keyEncoding='auto';
  }else if(target==='signature'){
    tab.options.signatureEncoding='base64';
+ }else if(tab.toolId==='keystore'&&tab.action!=='pack'){
+   tab.options.storeEncoding='base64';
  }else{
-   tab.options.dataEncoding='base64';
+   if(['asymmetric','symmetric'].includes(tab.toolId)&&tab.action==='decrypt')tab.options.outputEncoding='base64';
+   else tab.options.dataEncoding='base64';
    if(tab.toolId==='signature')tab.options.messageMode='raw';
  }
  if(target==='signature')tab.options.signature=value;else tab[target]=value;
@@ -112,15 +132,15 @@ async function importInput(target:'input'|'secondaryInput'|'signature',asKey=fal
 async function importLibrary(target:'input'|'secondaryInput'){
  if(!selectedSet.value||!selectedFile.value)return;
  const value=await attempt(()=>readKey(selectedSet.value,selectedFile.value));
- if(value!==undefined){props.tab[target]=value;props.tab.options.keyEncoding='auto';notice.value='已从本地密钥库导入 '+selectedFile.value;libraryOpen.value=false;}
+ if(value!==undefined){props.tab[target]=value;props.tab.options.keyEncoding='auto';if(isStore.value&&props.tab.action!=='pack')props.tab.options.storeEncoding='base64';notice.value='已从本地密钥库导入 '+selectedFile.value;libraryOpen.value=false;}
 }
 async function copy(value:string){const ok=await attempt(async()=>{await writeClipboard(value);return true;});if(ok)notice.value='已复制';}
 function toggleFile(name:string){revealed.value={...revealed.value,[name]:!revealed.value[name]};}
-function isPrivate(f:KeyFile){return f.name.startsWith('private_')||f.name.startsWith('secret_');}
+function isPrivate(f:KeyFile){return f.name.startsWith('private_')||f.name.startsWith('secret_')||f.name.startsWith('keystore.');}
 function randomHex(n:number){return Array.from(crypto.getRandomValues(new Uint8Array(n)),b=>b.toString(16).padStart(2,'0')).join('');}
 function generateIv(){
  const algorithm=alg.value;
- const n=algorithm.endsWith('-GCM')||algorithm==='ChaCha20-Poly1305'?12:algorithm.startsWith('3DES')?8:16;
+ const n=algorithm==='XChaCha20-Poly1305'?24:algorithm.endsWith('-GCM')||algorithm==='ChaCha20-Poly1305'?12:/^(3?DES)-/.test(algorithm)?8:16;
  setOption('ivEncoding','hex');setOption('iv',randomHex(n));
 }
 watch(()=>opts.value.algorithm,()=>{
@@ -128,37 +148,59 @@ watch(()=>opts.value.algorithm,()=>{
  if(tool.value.id==='symmetric'&&alg.value.endsWith('-ECB'))opts.value.iv='';
 });
 watch(()=>props.tab.result,()=>{revealed.value={};savedDirectory.value='';savedName.value='';});
-watch(selectedSet,()=>{selectedFile.value=sets.value.find(s=>s.name===selectedSet.value)?.files[0]??'';});
+watch(selectedSet,()=>{selectedFile.value=sets.value.find(s=>s.name===selectedSet.value)?.files[0]??'';manageAction.value='';manageName.value='';});
+function startManage(action:'rename'|'delete'){manageAction.value=action;manageName.value=action==='rename'?selectedSet.value:'';}
+async function confirmManage(){
+ const name=selectedSet.value;
+ if(!managedSet.value||!manageName.value.trim()||managing.value)return;
+ managing.value=true;
+ try{
+ if(manageAction.value==='delete'){
+   if(manageName.value!==name){error.value='请输入准确的密钥组名称';return;}
+   const ok=await attempt(async()=>{await deleteKeySet(name,manageName.value,directory.value);return true;});
+   if(ok){notice.value='已删除密钥组 '+name;selectedSet.value='';manageAction.value='';await refresh();}
+ }else if(manageAction.value==='rename'){
+   const target=manageName.value.trim();const path=await attempt(()=>renameKeySet(name,target,directory.value));
+   if(path){notice.value='已重命名至 '+path;await refresh();selectedSet.value=target;manageAction.value='';}
+ }
+ }finally{managing.value=false;}
+}
+watch(()=>opts.value.algorithm,value=>{if(tool.value.id==='crypto-hash'&&['BLAKE3','CRC32'].includes(String(value)))props.tab.action='hash';});
+
 onMounted(()=>{void refresh();});
 </script>
 <template>
  <div class="crypto-workbench">
-  <div class="crypto-actions"><div class="action-tabs" aria-label="处理操作"><button v-for="op in tool.actions" :key="op.id" :class="{selected:tab.action===op.id}" :aria-pressed="tab.action===op.id" @click="setAction(op.id)">{{op.label}}</button></div><span class="native-label"><ShieldCheck :size="15"/> 本地 OpenSSL</span></div>
+  <div class="crypto-actions"><div class="action-tabs" aria-label="处理操作"><button v-for="op in tool.actions.filter(op=>!(tool.id==='crypto-hash'&&['CRC32','BLAKE3'].includes(alg)&&op.id==='hmac'))" :key="op.id" :class="{selected:tab.action===op.id}" :aria-pressed="tab.action===op.id" @click="setAction(op.id)">{{op.label}}</button></div><span class="native-label"><ShieldCheck :size="15"/> 本地 OpenSSL</span></div>
   <div v-if="!desktop" class="warning-banner">浏览器仅用于界面预览；密码学运算与密钥目录管理需在桌面安装版中使用。</div>
   <div class="crypto-options">
    <label v-for="o in visibleOptions" :key="o.key" class="crypto-option" :class="{'wide':o.type==='textarea'||o.key==='keyName','check':o.type==='checkbox'}">
-    <template v-if="o.type==='checkbox'"><input type="checkbox" :checked="opts[o.key]===true" @change="setOption(o.key,($event.target as HTMLInputElement).checked)"/><span>{{o.label}}</span></template>
-    <template v-else><span>{{o.label}}</span><select v-if="o.type==='select'" :value="opts[o.key]" @change="setOption(o.key,($event.target as HTMLSelectElement).value)"><option v-for="choice in o.choices" :key="choice.value" :value="choice.value">{{choice.label}}</option></select>
-     <textarea v-else-if="o.type==='textarea'" rows="3" :value="String(opts[o.key]??'')" @input="setOption(o.key,($event.target as HTMLTextAreaElement).value)" spellcheck="false"/>
-     <input v-else-if="o.type==='number'" type="number" :min="o.min" :value="opts[o.key]" @input="setOption(o.key,Number(($event.target as HTMLInputElement).value))"/>
-     <input v-else :type="['rawKey','keyPassphrase','exportPassphrase'].includes(o.key)?'password':'text'" :value="opts[o.key]" :placeholder="o.description??''" autocomplete="off" spellcheck="false" @input="setOption(o.key,($event.target as HTMLInputElement).value)"/>
+    <template v-if="o.type==='checkbox'"><input type="checkbox" :aria-label="o.label" :checked="opts[o.key]===true" @change="setOption(o.key,($event.target as HTMLInputElement).checked)"/><span>{{o.label}}</span></template>
+    <template v-else><span>{{o.label}}</span><select v-if="o.type==='select'" :aria-label="o.label" :value="opts[o.key]" @change="setOption(o.key,($event.target as HTMLSelectElement).value)"><option v-for="choice in o.choices" :key="choice.value" :value="choice.value">{{choice.label}}</option></select>
+     <textarea v-else-if="o.type==='textarea'" :aria-label="o.label" rows="3" :value="String(opts[o.key]??'')" @input="setOption(o.key,($event.target as HTMLTextAreaElement).value)" spellcheck="false"/>
+     <input v-else-if="o.type==='number'" :aria-label="o.label" type="number" :min="o.min" :value="opts[o.key]" @input="setOption(o.key,Number(($event.target as HTMLInputElement).value))"/>
+     <input v-else :aria-label="o.label" :type="['rawKey','keyPassphrase','exportPassphrase','storePassphrase','entryPassphrase'].includes(o.key)?'password':'text'" :value="opts[o.key]" :placeholder="o.description??''" autocomplete="off" spellcheck="false" @input="setOption(o.key,($event.target as HTMLInputElement).value)"/>
     </template>
    </label>
   </div>
+  <div v-if="certVerify" class="crypto-inline"><button class="secondary-button" @click="importRoots">导入本地信任根证书</button><small>不会联网查询证书或自动信任系统根证书。</small></div>
   <div v-if="tool.id==='symmetric'&&!alg.endsWith('-ECB')" class="crypto-inline"><button type="button" class="secondary-button" @click="generateIv">生成随机 IV / Nonce</button><small v-if="aead">同一密钥下不可复用 Nonce；16 字节 Tag 附在密文末尾。</small></div>
   <div v-if="isSignature&&tab.action==='verify'" class="crypto-inline"><button class="secondary-button" @click="importInput('signature')">从二进制签名文件导入</button><small>报文包含签名字段时可留空；按原始字节验证。</small></div>
-  <div v-if="isGen||['keyconvert','certificate'].includes(tool.id)" class="crypto-directory">
+  <div v-if="isGen||['keyconvert','certificate','keystore'].includes(tool.id)" class="crypto-directory">
    <div class="crypto-label"><strong>默认密钥存储路径</strong><span>修改后自动保存</span></div>
    <div class="crypto-inline"><input readonly aria-label="默认密钥保存路径" :value="directory" :placeholder="desktop?'正在读取目录…':'桌面版可设置保存目录'"/><button class="secondary-button" :disabled="!desktop" @click="chooseDirectory"><FolderOpen :size="15"/>修改目录</button><button class="secondary-button" :disabled="!desktop" @click="attempt(()=>openKeyDirectory())">打开目录</button></div>
    <small v-if="opts.keyName">保存到：{{directory}} / {{opts.keyName}} /</small>
   </div>
-  <div v-if="inputKey||keyInput||isGen" class="crypto-library">
+  <div v-if="inputKey||keyInput||isGen||isStore" class="crypto-library">
    <button class="secondary-button" type="button" :disabled="!desktop" @click="libraryOpen=!libraryOpen;refresh()"><KeyRound :size="15"/>本地密钥库 <span>{{sets.length}}</span></button>
-   <div v-if="libraryOpen" class="crypto-library-panel"><div class="crypto-inline"><select v-model="selectedSet" aria-label="密钥组"><option value="">选择密钥组</option><option v-for="s in sets" :key="s.name" :value="s.name">{{s.name}}</option></select><select v-model="selectedFile" aria-label="密钥文件"><option value="">选择文件</option><option v-for="f in sets.find(s=>s.name===selectedSet)?.files||[]" :key="f" :value="f">{{f}}</option></select><button class="secondary-button" @click="refresh"><RefreshCw :size="14"/>刷新</button><button class="secondary-button" :disabled="!selectedSet" @click="attempt(()=>openKeyDirectory(selectedSet))">打开位置</button></div><div class="crypto-inline"><button v-if="inputKey" class="secondary-button" :disabled="!selectedFile" @click="importLibrary('input')">导入主输入</button><button v-if="keyInput" class="secondary-button" :disabled="!selectedFile" @click="importLibrary('secondaryInput')">导入密钥输入</button></div></div>
+   <div v-if="libraryOpen" class="crypto-library-panel"><div class="crypto-inline"><select v-model="selectedSet" aria-label="密钥组"><option value="">选择密钥组</option><option v-for="s in sets" :key="s.name" :value="s.name">{{s.name}}</option></select><select v-model="selectedFile" aria-label="密钥文件"><option value="">选择文件</option><option v-for="f in sets.find(s=>s.name===selectedSet)?.files||[]" :key="f" :value="f">{{f}}</option></select><button class="secondary-button" @click="refresh"><RefreshCw :size="14"/>刷新</button><button class="secondary-button" :disabled="!selectedSet" @click="attempt(()=>openKeyDirectory(selectedSet))">打开位置</button></div><div class="crypto-inline"><button v-if="inputKey||(isStore&&tab.action!=='pack')" class="secondary-button" :disabled="!selectedFile" @click="importLibrary('input')">导入主输入</button><button v-if="keyInput" class="secondary-button" :disabled="!selectedFile" @click="importLibrary('secondaryInput')">导入密钥输入</button><button v-if="managedSet" class="secondary-button" @click="startManage('rename')">重命名密钥组</button><button v-if="managedSet" class="secondary-button" @click="startManage('delete')">删除密钥组</button></div>
+    <div v-if="manageAction" class="crypto-inline"><label>{{manageAction==='rename'?'新名称':'确认删除：输入当前密钥组完整名称'}}<input v-model="manageName" aria-label="密钥组确认名称"/></label><button class="secondary-button" :disabled="managing" @click="confirmManage">确认{{manageAction==='rename'?'重命名':'删除'}}</button><button class="text-button" @click="manageAction=''">取消</button></div>
+    <small v-if="manageAction==='delete'">将永久删除 My Tools 创建的这一组文件，不会自动删除其他文件或工作台历史。</small>
+   </div>
   </div>
   <div v-if="needsInput||keyInput" class="crypto-inputs" :class="{paired:needsInput&&keyInput}">
    <div v-if="needsInput" class="crypto-editor"><div class="crypto-label"><label for="crypto-input">{{inputLabel}}</label><button class="small-action" @click="importInput('input',inputKey)"><FolderOpen :size="14"/>文件导入</button></div><textarea id="crypto-input" v-model="tab.input" spellcheck="false" autocomplete="off" rows="7" placeholder="粘贴内容或从本地文件导入"></textarea></div>
-   <div v-if="keyInput" class="crypto-editor"><div class="crypto-label"><label for="crypto-key">{{secondaryLabel}}</label><button class="small-action" @click="importInput('secondaryInput',true)"><FolderOpen :size="14"/>文件导入</button></div><textarea id="crypto-key" v-model="tab.secondaryInput" spellcheck="false" autocomplete="off" rows="7" placeholder="PEM / DER Base64 / Hex"></textarea></div>
+   <div v-if="keyInput" class="crypto-editor"><div class="crypto-label"><label for="crypto-key">{{secondaryLabel}}</label><button class="small-action" @click="importInput('secondaryInput',true)"><FolderOpen :size="14"/>文件导入</button></div><textarea id="crypto-key" v-model="tab.secondaryInput" spellcheck="false" autocomplete="off" rows="7" placeholder="PEM / DER Base64 / Hex / JWK / OpenSSH"></textarea></div>
   </div>
   <div class="crypto-footer"><button class="text-button" @click="emit('clear')"><Trash2 :size="15"/>清空</button><span v-if="running">原生任务正在运算，完成后显示结果。</span><button class="primary-button" :disabled="running||!desktop" @click="emit('run')"><Play :size="15"/>{{tool.actions.find(a=>a.id===tab.action)?.label}}</button></div>
   <div v-if="tab.error||error" class="error-banner" role="alert">{{tab.error||error}}</div>

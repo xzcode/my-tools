@@ -762,14 +762,18 @@
         "values": [
           "PKCS8",
           "PKCS1",
-          "SEC1"
+          "SEC1",
+          "JWK",
+          "OpenSSH"
         ]
       },
       "publicFormat": {
         "type": "select",
         "values": [
           "SPKI",
-          "PKCS1"
+          "PKCS1",
+          "JWK",
+          "OpenSSH"
         ]
       },
       "fileEncoding": {
@@ -815,14 +819,18 @@
         "values": [
           "PKCS8",
           "PKCS1",
-          "SEC1"
+          "SEC1",
+          "JWK",
+          "OpenSSH"
         ]
       },
       "publicFormat": {
         "type": "select",
         "values": [
           "SPKI",
-          "PKCS1"
+          "PKCS1",
+          "JWK",
+          "OpenSSH"
         ]
       },
       "fileEncoding": {
@@ -955,7 +963,9 @@
         "values": [
           "RSA-OAEP",
           "RSA-PKCS1",
-          "SM2-ASN1"
+          "SM2-ASN1",
+          "SM2-C1C3C2",
+          "SM2-C1C2C3"
         ]
       },
       "dataEncoding": {
@@ -1037,10 +1047,14 @@
           "SM4-CTR",
           "SM4-CFB",
           "SM4-OFB",
+          "SM4-GCM",
+          "DES-ECB",
+          "DES-CBC",
           "3DES-ECB",
           "3DES-CBC",
           "ChaCha20",
-          "ChaCha20-Poly1305"
+          "ChaCha20-Poly1305",
+          "XChaCha20-Poly1305"
         ]
       },
       "dataEncoding": {
@@ -1113,7 +1127,9 @@
           "SM3",
           "RIPEMD160",
           "BLAKE2b512",
-          "BLAKE2s256"
+          "BLAKE2s256",
+          "BLAKE3",
+          "CRC32"
         ]
       },
       "dataEncoding": {
@@ -1151,7 +1167,8 @@
         "values": [
           "PBKDF2",
           "HKDF",
-          "scrypt"
+          "scrypt",
+          "Argon2id"
         ]
       },
       "dataEncoding": {
@@ -1217,6 +1234,21 @@
         "min": 1,
         "max": 9007199254740991
       },
+      "memoryKiB": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
+      "timeCost": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
+      "parallelism": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
       "outputEncoding": {
         "type": "select",
         "values": [
@@ -1230,7 +1262,8 @@
     "actions": [
       "inspect",
       "csr",
-      "self-sign"
+      "self-sign",
+      "verify-chain"
     ],
     "options": {
       "keyEncoding": {
@@ -1245,6 +1278,77 @@
         "type": "number",
         "min": 1,
         "max": 9007199254740991
+      },
+      "isCa": {
+        "type": "checkbox"
+      }
+    }
+  },
+  "keystore": {
+    "actions": [
+      "pack",
+      "inspect",
+      "extract"
+    ],
+    "options": {
+      "storeFormat": {
+        "type": "select",
+        "values": [
+          "PKCS12",
+          "JKS"
+        ]
+      },
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "auto",
+          "base64",
+          "hex"
+        ]
+      },
+      "storeEncoding": {
+        "type": "select",
+        "values": [
+          "base64",
+          "hex"
+        ]
+      }
+    }
+  },
+  "sm2-format": {
+    "actions": [
+      "convert"
+    ],
+    "options": {
+      "sourceFormat": {
+        "type": "select",
+        "values": [
+          "ASN1",
+          "C1C3C2",
+          "C1C2C3"
+        ]
+      },
+      "targetFormat": {
+        "type": "select",
+        "values": [
+          "C1C3C2",
+          "C1C2C3",
+          "ASN1"
+        ]
+      },
+      "dataEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64"
+        ]
+      },
+      "outputEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64"
+        ]
       }
     }
   }

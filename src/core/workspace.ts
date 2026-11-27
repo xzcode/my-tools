@@ -42,7 +42,7 @@ export function duplicateTab(tab: ToolTab): ToolTab {
   return newToolTab(tab.toolId, (tab.name + ' 副本').slice(0,100), { ...toolDefaults(tab.toolId), ...safeOptions(tab.toolId, tab.options) });
 }
 function optionField(key: string, toolId: string): SecretField {
-  if (['key','rawKey','password','keyPassphrase','exportPassphrase'].includes(key)) return 'key';
+  if (['key','rawKey','password','keyPassphrase','exportPassphrase','storePassphrase','entryPassphrase'].includes(key)) return 'key';
   if (['aes','symmetric'].includes(toolId) && key === 'iv') return 'iv';
   if (['aes','symmetric'].includes(toolId) && key === 'aad') return 'aad';
   if (toolId === 'aes' && key === 'prefix') return 'prefix';
@@ -57,8 +57,8 @@ function projectTab(tab: ToolTab, state: Workspace): ToolTab {
       if (typeof value === 'string') opts[option.key] = value;
     }
   }
-  const payload = full && f.input, output = full && f.output && (!['keygen','keyconvert','kdf'].includes(tab.toolId) || f.key);
-  const inputAllowed = payload && (!['keyconvert','kdf'].includes(tab.toolId) || f.key);
+  const payload = full && f.input, output = full && f.output && (!['keygen','keyconvert','kdf','keystore'].includes(tab.toolId) || f.key);
+  const inputAllowed = payload && (!['keyconvert','kdf','keystore'].includes(tab.toolId) || f.key);
   const secondaryAllowed = payload && (!isNativeCrypto(tab.toolId) || f.key);
   return { id: tab.id, toolId: tab.toolId, name: tab.name.slice(0,100), action: tab.action,
     input: inputAllowed ? tab.input : '', secondaryInput: secondaryAllowed ? tab.secondaryInput : '',

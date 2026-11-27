@@ -1,9 +1,17 @@
 # My Tools · M1–M5 与后续增量交接
 
-日期：2026-11-27（Asia/Kuala_Lumpur）。**当前开发版本：0.7.0（M8 第一批，安装包待确认）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-27（Asia/Kuala_Lumpur）。**当前开发版本：0.7.0（M8 第二批，安装包待确认）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
 
 
 
+
+## v0.7.0 · 通用密码学工具（M8 第二批）
+
+- 工具总数 31，补齐 JWK、OpenSSH（RSA/Ed25519）、PKCS12/JKS、SM2 C1C3C2/C1C2C3、DES、SM4-GCM、XChaCha20-Poly1305、BLAKE3/CRC32、Argon2id、本地证书链与 SAN、密钥组重命名/删除。原有 29 个工具与多标签、历史、用户资源管理原则保留。
+- 原生扩展位于 src-tauri/crypto-core/src/extra.rs；原生目录管理仅处理 My Tools 创建、清单完整且不含额外文件的密钥组，重名拒绝覆盖，删除要求确认组名及预期目录；默认路径变化拒绝旧操作。
+- 新增容器密码字段纳入会话密钥保存策略，默认不落盘；原生密码学核心单独纳入 CI。浏览器仅展示界面。
+- 验证：独立 Rust 核心 19 项测试通过；npm check 中 103 项核心测试通过。包括 SSH 独立互通、PKCS12/JKS 往返、SM2 三格式、Argon2id 和证书验证。JKS 非 ASCII 别名/口令、独立 Java keytool 互通和三平台完整原生集成仍待确认。证书链不自动联网检查吊销。
+- 远端仍以实际 GitHub 状态为准；工作目录 /app/agent/my-tools-m6-20261127/m7，包含尚未推送的 v0.6.2 和 M8 开发提交。
 
 ## v0.7.0 · 通用密码学工具（M8 第一批）
 

@@ -10,7 +10,7 @@ import { modernSvga, legacySvga } from './fixtures/svga';
 
 describe('unified workspace',()=>{
  it('provides independent tabs for every registered tool',()=>{
-   expect(tools).toHaveLength(29);
+   expect(tools).toHaveLength(31);
    for(const tool of tools){const a=newToolTab(tool.id),b=newToolTab(tool.id);a.input='secret';expect(a.id).not.toBe(b.id);expect(b.input).toBe('');expect(b.options).toEqual(defaultOptions(tool));}
  });
  it('does not cap tab counts, templates or history and restores every record',()=>{

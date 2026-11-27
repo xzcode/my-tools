@@ -37,6 +37,8 @@
     "allow-crypto-save-keys",
     "allow-crypto-open-directory",
     "allow-crypto-list-keys",
-    "allow-crypto-read-key"
+    "allow-crypto-read-key",
+    "allow-crypto-rename-key-set",
+    "allow-crypto-delete-key-set"
   ]
 }

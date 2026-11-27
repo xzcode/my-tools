@@ -103,6 +103,8 @@ fn tool_name(id: &str) -> &str {
         "crypto-hash" => "扩展哈希与 HMAC",
         "kdf" => "密钥派生",
         "certificate" => "证书工具",
+        "keystore" => "密钥容器（KeyStore）",
+        "sm2-format" => "SM2 密文格式转换",
 
         "password" => "强密码生成器",
         "hash" => "哈希与 HMAC",
@@ -484,6 +486,8 @@ pub fn run() {
             crypto_tools::crypto_get_directory,
             crypto_tools::crypto_choose_directory,
             crypto_tools::crypto_save_keys,
+            crypto_tools::crypto_rename_key_set,
+            crypto_tools::crypto_delete_key_set,
             crypto_tools::crypto_open_directory,
             crypto_tools::crypto_list_keys,
             crypto_tools::crypto_read_key,

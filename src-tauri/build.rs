@@ -7,6 +7,8 @@ fn main() {
             "crypto_get_directory",
             "crypto_choose_directory",
             "crypto_save_keys",
+            "crypto_rename_key_set",
+            "crypto_delete_key_set",
             "crypto_open_directory",
             "crypto_list_keys",
             "crypto_read_key",

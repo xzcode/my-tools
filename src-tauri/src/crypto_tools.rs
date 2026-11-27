@@ -1,5 +1,7 @@
 use my_tools_crypto::{KeyFile, Request, ResultData};
 use serde::Serialize;
+use std::sync::Mutex;
+static KEY_DIRECTORY_WRITE: Mutex<()> = Mutex::new(());
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -89,6 +91,9 @@ pub async fn crypto_choose_directory(
         if !dir.is_dir() {
             return Err("请选择文件夹".into());
         }
+        let _guard = KEY_DIRECTORY_WRITE
+            .lock()
+            .map_err(|_| "密钥目录状态暂不可用")?;
         save_directory(&app, dir.clone())?;
         Ok(Some(dir.to_string_lossy().into_owned()))
     })
@@ -104,6 +109,9 @@ pub async fn crypto_save_keys(
 ) -> Result<String, String> {
     super::trusted_main(&window)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let _guard = KEY_DIRECTORY_WRITE
+            .lock()
+            .map_err(|_| "密钥目录状态暂不可用")?;
         let dir = my_tools_crypto::save_key_files(&directory(&app)?, &name, &files)?;
         Ok(dir.to_string_lossy().into_owned())
     })
@@ -135,16 +143,9 @@ pub fn crypto_open_directory(
 pub struct KeySet {
     name: String,
     files: Vec<String>,
+    managed: bool,
 }
-const KEY_FILES: &[&str] = &[
-    "private_key.pem",
-    "private_key.der",
-    "public_key.pem",
-    "public_key.der",
-    "secret_key.txt",
-    "certificate.csr",
-    "certificate.pem",
-];
+const KEY_FILES: &[&str] = my_tools_crypto::KEY_FILE_NAMES;
 #[tauri::command]
 pub async fn crypto_list_keys(
     window: WebviewWindow,
@@ -174,7 +175,12 @@ pub async fn crypto_list_keys(
                 .map(|x| x.to_string())
                 .collect::<Vec<_>>();
             if !files.is_empty() {
-                sets.push(KeySet { name, files });
+                let managed = my_tools_crypto::is_managed_key_directory(&root, &name);
+                sets.push(KeySet {
+                    name,
+                    files,
+                    managed,
+                });
             }
         }
         sets.sort_by(|a, b| a.name.cmp(&b.name));
@@ -202,11 +208,60 @@ pub async fn crypto_read_key(
             return Err("只支持普通密钥文件".into());
         }
         let data = fs::read(path).map_err(|e| e.to_string())?;
-        if file.ends_with(".der") {
+        if file.ends_with(".der") || file.ends_with(".p12") || file.ends_with(".jks") {
             Ok(my_tools_crypto::encode_der(&data))
         } else {
             String::from_utf8(data).map_err(|_| "密钥文件不是 UTF-8 文本".into())
         }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn crypto_rename_key_set(
+    window: WebviewWindow,
+    app: AppHandle,
+    name: String,
+    new_name: String,
+    expected_directory: String,
+) -> Result<String, String> {
+    super::trusted_main(&window)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = KEY_DIRECTORY_WRITE
+            .lock()
+            .map_err(|_| "密钥目录状态暂不可用")?;
+        let root = directory(&app)?;
+        if root != PathBuf::from(expected_directory) {
+            return Err("默认目录已改变，请刷新密钥库后重试".into());
+        }
+        let path = my_tools_crypto::rename_key_directory(&root, &name, &new_name)?;
+        Ok(path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+pub async fn crypto_delete_key_set(
+    window: WebviewWindow,
+    app: AppHandle,
+    name: String,
+    confirmed_name: String,
+    expected_directory: String,
+) -> Result<(), String> {
+    super::trusted_main(&window)?;
+    if name != confirmed_name {
+        return Err("请输入准确的密钥组名称以确认删除".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = KEY_DIRECTORY_WRITE
+            .lock()
+            .map_err(|_| "密钥目录状态暂不可用")?;
+        let root = directory(&app)?;
+        if root != PathBuf::from(expected_directory) {
+            return Err("默认目录已改变，请刷新密钥库后重试".into());
+        }
+        my_tools_crypto::delete_key_directory(&root, &name)
     })
     .await
     .map_err(|e| e.to_string())?

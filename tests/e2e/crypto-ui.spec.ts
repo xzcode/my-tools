@@ -22,3 +22,33 @@ test('native crypto tools share tabs and display accurate options in browser pre
   await expect(page.getByLabel('响应字段名（精确匹配）')).toBeVisible();
   await expect(page.getByText('浏览器仅用于界面预览；密码学运算与密钥目录管理需在桌面安装版中使用。')).toBeVisible();
 });
+
+test('extended crypto format controls, certificate chain and new algorithm parameters',async({page})=>{
+  await page.goto('/#/tools/keyconvert');
+  await expect(page.locator('h1')).toHaveText('密钥格式转换');
+  await page.getByLabel('私钥格式',{exact:true}).selectOption('JWK');
+  await page.getByLabel('公钥格式',{exact:true}).selectOption('OpenSSH');
+  await page.getByRole('button',{name:'密钥容器（KeyStore）',exact:true}).click();
+  await expect(page.locator('h1')).toHaveText('密钥容器（KeyStore）');
+  await page.getByLabel('容器格式',{exact:true}).selectOption('JKS');
+  await expect(page.getByLabel('JKS 条目口令（留空使用容器口令）')).toBeVisible();
+  await page.locator('.crypto-actions').getByRole('button',{name:'提取密钥和证书',exact:true}).click();
+  await expect(page.getByLabel('容器输入编码')).toBeVisible();
+  await expect(page.getByLabel('密钥容器（Base64 / Hex）')).toBeVisible();
+  await page.getByRole('button',{name:'SM2 密文格式转换',exact:true}).click();
+  await expect(page.getByLabel('原始格式')).toHaveValue('ASN1');
+  await page.getByLabel('目标格式').selectOption('C1C2C3');
+  await page.getByRole('button',{name:'对称加解密（高级）',exact:true}).click();
+  await page.getByLabel('算法与模式').selectOption('XChaCha20-Poly1305');
+  await page.getByRole('button',{name:'生成随机 IV / Nonce',exact:true}).click();
+  await expect(page.getByLabel('IV / Nonce',{exact:true})).toHaveValue(/^[0-9a-f]{48}$/);
+  await page.getByRole('button',{name:'密钥派生',exact:true}).click();
+  await page.getByLabel('派生算法').selectOption('Argon2id');
+  await expect(page.getByLabel('Argon2 内存 (KiB)')).toHaveValue('65536');
+  await page.getByRole('button',{name:'证书工具',exact:true}).click();
+  await page.locator('.crypto-actions').getByRole('button',{name:'验证证书链',exact:true}).click();
+  await expect(page.getByLabel('本地信任根 PEM / Base64 DER')).toBeVisible();
+  await expect(page.getByLabel('中间证书 PEM（可选）')).toBeVisible();
+  await page.locator('.crypto-actions').getByRole('button',{name:'生成自签名证书',exact:true}).click();
+  await expect(page.getByLabel('SAN DNS（逗号分隔）')).toBeVisible();
+});
