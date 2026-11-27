@@ -141,6 +141,7 @@ async function generatePair(profile: string, bits: number): Promise<CryptoKeyPai
 export async function processKeygen(request: ToolRequest): Promise<ToolResult> {
   const name = validateKeyName(request.input), profile = optionText(request.options, 'profile');
   const bits = Number(optionText(request.options, 'bits'));
+  if (!['pem','der','base64'].some(k => optionBool(request.options,k))) throw Error('至少选择一种输出编码。');
   const pair = await generatePair(profile, bits);
   const pkcs8 = new Uint8Array(await subtle().exportKey('pkcs8', pair.privateKey)), spki = new Uint8Array(await subtle().exportKey('spki', pair.publicKey));
   const fp = await fingerprint(pair.publicKey);
@@ -151,7 +152,6 @@ export async function processKeygen(request: ToolRequest): Promise<ToolResult> {
   if (profile === 'RSA' && optionBool(request.options, 'pkcs1')) formats.push(
     { role: 'private', format: 'pkcs1', label: 'RSA PRIVATE KEY', data: unwrapRsa(pkcs8, 'private') },
     { role: 'public', format: 'pkcs1', label: 'RSA PUBLIC KEY', data: unwrapRsa(spki, 'public') });
-  if (!['pem','der','base64'].some(k => optionBool(request.options,k))) throw Error('至少选择一种输出编码。');
   for (const item of formats) {
     const base = name + '_' + item.role + '_' + item.format;
     if (optionBool(request.options, 'pem')) add(base + '.pem', encoder.encode(pem(item.data,item.label)));

@@ -84,7 +84,7 @@ export async function processHash(request: ToolRequest): Promise<ToolResult> {
     buffer = await api.sign('HMAC', key, encoder.encode(request.input));
   } else buffer = await api.digest(algorithm, encoder.encode(request.input));
   const bytes = new Uint8Array(buffer);
-  return { output: optionText(request.options, 'output') === 'base64' ? encodeBase64Bytes(bytes) : bytesToHex(bytes), summary: `${request.action === 'hmac' ? 'HMAC-' : ''}${algorithm} · ${bytes.length * 8} bit` };
+  return { output: optionText(request.options, 'output') === 'base64' ? encodeBase64Bytes(bytes) : bytesToHex(bytes), summary: `${request.action === 'hmac' ? 'HMAC-' : ''}${algorithm} · ${bytes.length * 8} bit`, warnings: algorithm === 'SHA-1' ? ['SHA-1 不适用于新的碰撞安全用途，仅用于兼容。'] : [] };
 }
 
 export function processJwt(request: ToolRequest): ToolResult {

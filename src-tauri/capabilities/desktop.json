@@ -30,6 +30,10 @@
     "allow-save-aes-workspace",
     "allow-clear-aes-workspace",
     "allow-enable-aes-workspace-exit-guard",
-    "allow-finish-aes-workspace-exit"
+    "allow-finish-aes-workspace-exit",
+    "allow-get-key-directory",
+    "allow-choose-key-directory",
+    "allow-save-key-bundle",
+    "allow-open-key-directory"
   ]
 }

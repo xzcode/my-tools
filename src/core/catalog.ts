@@ -48,7 +48,7 @@ export const tools: ToolDefinition[] = [
   { id: 'uuid', name: 'UUID 与随机字符串', description: '使用系统加密随机源，批量生成 UUID v4 或随机文本。', category: 'developer', icon: 'fingerprint', keywords: ['uuid', 'random', '随机', '密码'], sampleInput: '',
     options: [number('count', '生成数量', 5, 1, 1000), number('length', '随机字符串长度', 24, 1, 256), select('alphabet', '随机字符集', [['alphanumeric', '字母 + 数字'], ['hex', '十六进制'], ['password', '字母 + 数字 + 符号']]), check('uppercase', '大写', false), check('hyphens', 'UUID 保留连字符')],
     actions: actions(['uuid', '生成 UUID'], ['random', '生成随机字符串']), defaultAction: 'uuid', extension: 'txt' },
-  { id: 'hash', name: '哈希与 HMAC', description: '计算 SHA-256 / SHA-512 摘要或带密钥的 HMAC。', category: 'developer', icon: 'hash', keywords: ['sha', 'sha256', 'sha512', 'hmac', '哈希', '摘要'], sampleInput: 'hello world',
+  { id: 'hash', name: '哈希与 HMAC', description: '计算 SHA-1 / SHA-256 / SHA-384 / SHA-512 摘要或 HMAC。', category: 'developer', icon: 'hash', keywords: ['sha', 'sha256', 'sha512', 'hmac', '哈希', '摘要'], sampleInput: 'hello world',
     options: [select('algorithm', '算法', [['SHA-256', 'SHA-256'], ['SHA-512', 'SHA-512'], ['SHA-384', 'SHA-384'], ['SHA-1', 'SHA-1（兼容）']]), text('key', 'HMAC 密钥', '', '仅用于 HMAC，不保存在偏好设置中'), select('output', '输出格式', [['hex', '十六进制'], ['base64', 'Base64']])],
     actions: actions(['hash', '计算摘要'], ['hmac', '计算 HMAC']), defaultAction: 'hash', extension: 'txt', supportsBatch: true },
   { id: 'jwt', name: 'JWT 解析', description: '查看 Header、Payload 与声明时间；不验证签名。', category: 'developer', icon: 'key', keywords: ['jwt', 'token', '令牌'], sampleInput: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2pvIiwibmFtZSI6Ikpvam8iLCJpYXQiOjE3NjM2ODA4MDB9.demo',

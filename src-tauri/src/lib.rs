@@ -1,5 +1,6 @@
 mod aes_workspace;
 mod files;
+mod key_files;
 mod preferences;
 mod updater;
 
@@ -103,6 +104,13 @@ fn tool_name(id: &str) -> &str {
         "json-diff" => "JSON 对比",
         "convert" => "JSON · YAML · CSV",
         "curl" => "cURL 解析",
+        "keygen" => "密钥生成",
+        "key-match" => "密钥匹配",
+        "key-format" => "密钥解析与转换",
+        "signature" => "数字签名与验签",
+        "rsa-crypto" => "RSA 加解密",
+        "key-agreement" => "密钥协商",
+        "packet-signing" => "报文签名原文",
         _ => id,
     }
 }
@@ -362,6 +370,7 @@ pub fn run() {
                 .build(),
         )
         .manage(AppState::default())
+        .manage(key_files::KeyDirectoryStore::default())
         .manage(aes_workspace::WorkspaceStore::default());
     #[cfg(feature = "updater")]
     let builder = builder
@@ -484,6 +493,10 @@ pub fn run() {
             files::open_text_files,
             files::save_text_file,
             files::save_batch_files,
+            key_files::get_key_directory,
+            key_files::choose_key_directory,
+            key_files::save_key_bundle,
+            key_files::open_key_directory,
             files::read_dropped_files,
             files::read_dropped_binary_file,
             load_preferences,

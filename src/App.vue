@@ -10,7 +10,11 @@ import PhoneCountrySelect from './components/PhoneCountrySelect.vue';
 import SvgaPreview from './components/SvgaPreview.vue';
 import { registerAesExit, exitWithoutSavingAesWorkspace } from './platform/aes-workspace';
 import type { ToolTab } from './core/workspace';
-import { encodeBase64Bytes } from './core/encoding';
+import { encodeBase64Bytes, decodeBase64Bytes, decodeUtf8 } from './core/encoding';
+import { readKeyBundle, validateKeyName, type KeyBundleFile } from './core/key-tools';
+import { privateKeyTool } from './core/workspace';
+import { zipSync } from 'fflate';
+import { getKeyDirectory, chooseKeyDirectory, saveNamedKeyBundle, openKeyDirectory } from './platform/desktop';
 import CodeEditor from './components/CodeEditor.vue';
 import JsonTree from './components/JsonTree.vue';
 import ToolIcon from './components/ToolIcon.vue';
@@ -77,7 +81,76 @@ const activeTheme = computed(() => preferences.value.theme === 'system' ? (syste
 const favorites = computed(() => preferences.value.favorites.map(getTool).filter((tool): tool is ToolDefinition => !!tool));
 const recent = computed(() => preferences.value.recent.map(getTool).filter((tool): tool is ToolDefinition => !!tool));
 const selectedAction = computed(() => currentTool.value.actions.find(item => item.id === action.value));
+const keyDirectory = ref('');
+const keyDirectoryBusy = ref(false);
+const lastKeyDestination = ref('');
+const keyBundle = computed(() => {
+  if (currentId.value !== 'keygen' || !result.value) return null;
+  try { return readKeyBundle(result.value.output); } catch { return null; }
+});
+const keyFolderPreview = computed(() => {
+  try { return validateKeyName(input.value) + '_' + (options.value.profile === 'RSA' ? 'RSA_' + options.value.bits : options.value.profile); }
+  catch { return '请输入有效密钥名称'; }
+});
+watch(currentId, id => {
+  if (id === 'keygen') void guarded(getKeyDirectory).then(value => { if (value) keyDirectory.value = value; });
+}, { immediate: true });
+async function selectKeyDirectory() {
+  if (keyDirectoryBusy.value) return;
+  keyDirectoryBusy.value = true;
+  try {
+    const selected = await guarded(chooseKeyDirectory);
+    if (selected) { keyDirectory.value = selected; lastKeyDestination.value = ''; notify('默认密钥目录已保存'); }
+  } finally { keyDirectoryBusy.value = false; }
+}
+async function exportKeys() {
+  if (!keyBundle.value || stale.value || keyDirectoryBusy.value) return;
+  const bundle = keyBundle.value;
+  keyDirectoryBusy.value = true;
+  try {
+    if (!window.confirm('将导出未加密的私钥文件，请确认目标位置可信。是否继续？')) return;
+    if (desktop) {
+      const destination = await guarded(() => saveNamedKeyBundle(bundle.name, bundle.algorithm, bundle.files.map(file => ({ name:file.name, bytes:Array.from(decodeBase64Bytes(file.base64)) }))));
+      if (destination) { lastKeyDestination.value = destination; notify('密钥已保存：' + destination); }
+    } else {
+      const entries = Object.fromEntries(bundle.files.map(file => [bundle.folder + '/' + file.name, decodeBase64Bytes(file.base64)]));
+      const bytes = zipSync(entries, { level:0 });
+      if (await guarded(() => saveBinaryFile(Array.from(bytes), bundle.folder + '.zip'))) notify('密钥 ZIP 已导出');
+    }
+  } finally { keyDirectoryBusy.value = false; }
+}
+async function copyKeyFile(file: KeyBundleFile) {
+  if (file.name.endsWith('.der')) {
+    await guarded(() => writeClipboard(file.base64), 'DER 的 Base64 内容已复制');
+  } else await guarded(() => writeClipboard(decodeUtf8(decodeBase64Bytes(file.base64))), '文件内容已复制');
+}
+async function importDerKey(secondary = false) {
+  const tab = activeTab.value;
+  const file = await guarded(() => openBinaryFile());
+  if (!file || !tabAlive(tab)) return;
+  const value = encodeBase64Bytes(Uint8Array.from(file.bytes));
+  if (secondary) tab.secondaryInput = value; else tab.input = value;
+  if (tab.result) tab.stale = true;
+}
+function useCanonicalText() {
+  if (currentId.value !== 'packet-signing' || !result.value || stale.value) return;
+  const text = result.value.output;
+  applyTool('signature');
+  activeTab.value.input = text;
+  activeTab.value.action = 'sign';
+  location.hash = '/tools/signature';
+  notify('已将待签名原文带入数字签名工具');
+}
 const visibleOptions = computed(() => {
+  if (currentId.value === 'keygen') return currentTool.value.options.filter(option => !['bits','pkcs1'].includes(option.key) || options.value.profile === 'RSA');
+  if (currentId.value === 'key-format') return currentTool.value.options.filter(option => option.key !== 'format' && option.key !== 'encoding' || action.value !== 'inspect');
+  if (currentId.value === 'signature') return currentTool.value.options.filter(option => {
+    const algorithm = String(options.value.algorithm);
+    if (option.key === 'curve' || option.key === 'ecdsaFormat') return algorithm.startsWith('ECDSA-');
+    if (option.key === 'saltLength') return algorithm.startsWith('RSA-PSS-');
+    if (option.key === 'signature') return action.value === 'verify';
+    return true;
+  });
   if (currentId.value !== 'aes') return currentTool.value.options;
   const advanced = options.value.profile === 'advanced';
   return currentTool.value.options.filter(option => {
@@ -200,6 +273,12 @@ function generateAesIv() {
 }
 
 function setSample() {
+  if (privateKeyTool(currentId.value)) {
+    if (currentId.value === 'keygen') input.value = 'my-project';
+    else if (currentId.value === 'signature' || currentId.value === 'rsa-crypto') input.value = currentTool.value.sampleInput;
+    notify(currentId.value === 'keygen' ? '已填入示例名称，请按需修改后生成。' : '请使用自己生成的测试密钥；不会自动生成或替换现有密钥。');
+    return;
+  }
   if (currentId.value === 'aes') {
     input.value = currentTool.value.sampleInput;
     notify('已填入示例明文，保留当前 Tab 的加密参数和前缀。');
@@ -495,6 +574,16 @@ onBeforeUnmount(() => {
           <div class="workbench-toolbar"><div class="action-tabs" aria-label="处理操作"><button v-for="item in currentTool.actions" :key="item.id" :class="{ selected: action === item.id }" :aria-pressed="action === item.id" @click="action = item.id">{{ item.label }}</button></div><div class="toolbar-end"><button v-if="currentTool.options.length" class="icon-button" :class="{ toggled: showOptions }" aria-label="展开或收起工具选项" :aria-expanded="showOptions" @click="showOptions = !showOptions"><SlidersHorizontal :size="17" /></button><button class="text-button" @click="setSample">填入示例<ArrowUpRight :size="14" /></button></div></div>
           <div v-if="showOptions && currentTool.options.length" class="tool-options"><label v-for="option in visibleOptions" :key="option.key" class="tool-option" :class="{ 'checkbox-option': option.type === 'checkbox', 'wide-option': option.type === 'textarea' || option.key === 'pattern' || option.key === 'prefix' }"><template v-if="option.type === 'checkbox'"><input v-model="options[option.key]" type="checkbox" /><span>{{ option.label }}</span></template><template v-else><span>{{ option.label }}</span><PhoneCountrySelect v-if="currentId === 'phone' && option.key === 'country'" :key="activeTab.id" :model-value="String(options[option.key])" @update:model-value="options[option.key] = $event" /><select v-else-if="option.type === 'select'" v-model="options[option.key]" :aria-label="option.label"><option v-for="choice in option.choices" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select><textarea v-else-if="option.type === 'textarea'" :value="String(options[option.key] ?? '')" @input="options[option.key] = ($event.target as HTMLTextAreaElement).value" :aria-label="option.label" :title="option.description" rows="2" /><input v-else-if="option.type === 'number'" v-model.number="options[option.key]" type="number" :min="option.min" :max="option.max" :aria-label="option.label" /><input v-else v-model="options[option.key]" :type="['key', 'password', 'rawKey'].includes(option.key) ? 'password' : 'text'" :aria-label="option.label" :title="option.description" :placeholder="option.description || '留空'" autocomplete="off" spellcheck="false" /></template></label></div>
 
+          <section v-if="currentId === 'keygen'" class="keygen-form">
+            <label class="settings-field"><span>密钥名称</span><input v-model="input" aria-label="密钥名称" placeholder="例如 payment-server" autocomplete="off" spellcheck="false" /></label>
+            <label class="settings-field"><span>默认存储路径</span><div class="key-directory-row"><input :value="keyDirectory" aria-label="默认密钥存储路径" readonly /><button class="secondary-button" :disabled="!desktop || keyDirectoryBusy" @click="selectKeyDirectory"><FolderOpen :size="15" />修改目录</button><button class="secondary-button" :disabled="!desktop || keyDirectoryBusy" @click="guarded(openKeyDirectory)"><FolderOpen :size="15" />打开存储目录</button></div><small>目录选择后自动保存，重启不会重置。相同名称生成新文件夹，不覆盖已有密钥。</small></label>
+            <p class="key-directory-preview"><FolderOpen :size="16" />文件夹：{{ keyFolderPreview }}</p>
+            <p v-if="!desktop" class="setting-warning">浏览器预览可生成密钥并导出 ZIP，但不能设置本机默认目录。</p>
+          </section>
+          <div v-if="['key-match','key-format','signature','rsa-crypto','key-agreement'].includes(currentId)" class="binary-file-bar aes-mode-hint">
+            <div><ShieldCheck :size="16" /><span>支持 PEM / Base64 DER；私钥、原文和签名结果不进入历史或持久化工作台。</span></div>
+            <div><button v-if="['key-format','key-match','key-agreement'].includes(currentId)" class="text-button" @click="importDerKey(false)"><FolderOpen :size="14" />导入第一个 DER 密钥</button><button v-if="currentTool.secondaryInputLabel" class="text-button" @click="importDerKey(true)"><FolderOpen :size="14" />导入密钥 DER 文件</button></div>
+          </div>
           <div v-if="currentId === 'aes'" class="binary-file-bar aes-mode-hint">
             <div><ShieldCheck :size="16" /><span v-if="options.profile !== 'advanced'">简单模式：随机 Salt / IV，保留与 v0.2.0 相同的 AES-256-GCM JSON 密文格式。</span><span v-else-if="options.cipherMode === 'GCM'">高级 GCM：同一 Key 下绝不能重复使用 IV；请每次加密生成新的随机 IV，并妥善保存。</span><span v-else-if="options.cipherMode === 'ECB'">Java ECB/PKCS5 兼容：无需 IV；ECB 泄露重复明文块，也不认证密文。</span><span v-else>高级 CBC：用于兼容旧系统；CBC 不认证密文完整性，建议新系统采用 GCM。</span></div>
             <div><button class="text-button" type="button" @click="useJavaEcbPreset"><ShieldCheck :size="14" />Java ECB/PKCS5</button><button v-if="options.profile === 'advanced' && options.cipherMode !== 'ECB'" class="text-button" type="button" @click="generateAesIv"><ShieldCheck :size="14" />生成随机 IV</button></div>
@@ -503,9 +592,14 @@ onBeforeUnmount(() => {
 
           <div v-if="currentTool.secondaryInputLabel" class="editor-pair comparison-pair"><section class="editor-pane"><div class="editor-label"><span><span class="pane-index">01</span>{{ currentTool.inputLabel || '输入内容' }}</span><button class="icon-button" title="粘贴" aria-label="粘贴输入" @click="pasteInput"><ClipboardPaste :size="15" /></button><button class="icon-button" title="导入原始文件" aria-label="导入原始文件" @click="importFiles()"><FolderOpen :size="15" /></button></div><CodeEditor v-model="input" :label="currentTool.inputLabel || '输入内容'" placeholder="在这里粘贴原始内容…" /></section><section class="editor-pane"><div class="editor-label"><span><span class="pane-index">02</span>{{ currentTool.secondaryInputLabel }}</span><div><button class="icon-button" title="粘贴修改后文本" aria-label="粘贴修改后文本" @click="pasteSecondaryInput"><ClipboardPaste :size="15" /></button><button class="icon-button" title="导入修改后文件" aria-label="导入修改后文件" @click="importSecondaryFile"><FolderOpen :size="15" /></button><button class="icon-button" title="交换两侧内容" aria-label="交换输入内容" @click="swap"><ArrowLeftRight :size="15" /></button></div></div><CodeEditor v-model="secondaryInput" :label="currentTool.secondaryInputLabel" placeholder="在这里粘贴修改后的内容…" /></section></div>
 
-          <div class="editor-pair" :class="{ 'comparison-output': !!currentTool.secondaryInputLabel }"><section v-if="!currentTool.secondaryInputLabel" class="editor-pane input-pane"><div class="editor-label"><span><span class="pane-index">01</span>{{ currentTool.inputLabel || '输入内容' }}</span><div><button class="small-action" @click="pasteInput"><ClipboardPaste :size="14" />粘贴</button><button class="icon-button" title="导入文本文件" aria-label="导入文件" @click="importFiles()"><FolderOpen :size="16" /></button></div></div><CodeEditor v-model="input" :label="currentTool.inputLabel || '输入内容'" :placeholder="['uuid', 'password'].includes(currentId) ? '这个工具无需输入。设置选项后，点击生成即可。' : '粘贴内容，或将文本文件拖到这里…'" /><div class="editor-meta"><span>{{ input.split('\n').length }} 行<span class="meta-separator">·</span>{{ input.length.toLocaleString() }} 字符</span><span>UTF-8<span class="meta-separator">·</span>{{ byteLabel(inputBytes) }}</span></div></section>
-            <section class="editor-pane output-pane"><div class="editor-label"><span><span class="pane-index">{{ currentTool.secondaryInputLabel ? '03' : '02' }}</span>处理结果<span v-if="result && !stale" class="success-label"><Check :size="12" />完成</span><span v-else-if="stale" class="stale-label">待重新处理</span></span><div class="output-controls"><div v-if="result && (canTree || result.diff)" class="view-switch"><button :class="{ selected: outputView === 'text' }" @click="outputView = 'text'">文本</button><button v-if="canTree" :class="{ selected: outputView === 'tree' }" @click="outputView = 'tree'">树形</button><button v-if="result.diff" :class="{ selected: outputView === 'diff' }" @click="outputView = 'diff'">差异</button></div><button class="small-action" :disabled="!result" @click="copyOutput"><Copy :size="14" />复制</button></div></div>
+          <div class="editor-pair" :class="{ 'comparison-output': !!currentTool.secondaryInputLabel || currentId === 'keygen' }"><section v-if="!currentTool.secondaryInputLabel && currentId !== 'keygen'" class="editor-pane input-pane"><div class="editor-label"><span><span class="pane-index">01</span>{{ currentTool.inputLabel || '输入内容' }}</span><div><button class="small-action" @click="pasteInput"><ClipboardPaste :size="14" />粘贴</button><button class="icon-button" title="导入文本文件" aria-label="导入文件" @click="importFiles()"><FolderOpen :size="16" /></button></div></div><CodeEditor v-model="input" :label="currentTool.inputLabel || '输入内容'" :placeholder="['uuid', 'password'].includes(currentId) ? '这个工具无需输入。设置选项后，点击生成即可。' : '粘贴内容，或将文本文件拖到这里…'" /><div class="editor-meta"><span>{{ input.split('\n').length }} 行<span class="meta-separator">·</span>{{ input.length.toLocaleString() }} 字符</span><span>UTF-8<span class="meta-separator">·</span>{{ byteLabel(inputBytes) }}</span></div></section>
+            <section class="editor-pane output-pane"><div class="editor-label"><span><span class="pane-index">{{ currentTool.secondaryInputLabel ? '03' : '02' }}</span>处理结果<span v-if="result && !stale" class="success-label"><Check :size="12" />完成</span><span v-else-if="stale" class="stale-label">待重新处理</span></span><div class="output-controls"><div v-if="currentId !== 'keygen' && result && (canTree || result.diff)" class="view-switch"><button :class="{ selected: outputView === 'text' }" @click="outputView = 'text'">文本</button><button v-if="canTree" :class="{ selected: outputView === 'tree' }" @click="outputView = 'tree'">树形</button><button v-if="result.diff" :class="{ selected: outputView === 'diff' }" @click="outputView = 'diff'">差异</button></div><button v-if="currentId !== 'keygen'" class="small-action" :disabled="!result" @click="copyOutput"><Copy :size="14" />复制</button></div></div>
               <div v-if="!result" class="output-empty"><div class="output-empty-icon"><ToolIcon :id="currentId" :size="30" /></div><strong>结果会显示在这里</strong><span>输入内容后，点击“{{ selectedAction?.label }}”</span><kbd>{{ modifier }} ↵</kbd></div>
+              <div v-else-if="currentId === 'keygen' && keyBundle" class="key-bundle-list">
+                <div class="key-bundle-summary"><strong>{{ keyBundle.folder }}</strong><small>{{ keyBundle.fingerprint }}</small></div>
+                <div v-for="file in keyBundle.files" :key="file.name" class="key-bundle-row"><Files :size="16" /><span>{{ file.name }}</span><button class="text-button" :disabled="stale" @click="copyKeyFile(file)"><Copy :size="14" />{{ file.name.endsWith('.der') ? '复制 Base64' : '复制内容' }}</button></div>
+                <div class="key-bundle-actions"><button class="secondary-button" :disabled="stale || keyDirectoryBusy" @click="exportKeys"><Download :size="15" />{{ desktop ? '保存密钥文件夹' : '导出密钥 ZIP' }}</button><span v-if="lastKeyDestination">{{ lastKeyDestination }}</span></div>
+              </div>
               <div v-else-if="outputView === 'tree'" class="tree-view"><JsonTree v-if="treeValue !== undefined" :value="treeValue" /><div v-else class="tree-limit">当前结果不是 JSON，请切换到文本视图。</div></div>
               <div v-else-if="outputView === 'diff' && result.diff" class="diff-view"><div v-for="(part, index) in result.diff" :key="index" :class="`diff-part diff-${part.type}`"><span aria-hidden="true">{{ part.type === 'add' ? '+' : part.type === 'remove' ? '−' : ' ' }}</span><pre>{{ part.text }}</pre></div></div>
               <CodeEditor v-else :model-value="result.output" label="处理结果" readonly />
@@ -515,7 +609,7 @@ onBeforeUnmount(() => {
           <div v-if="error" class="error-banner" role="alert"><CircleAlert :size="17" /><span>{{ error }}</span><button class="icon-button" aria-label="关闭错误提示" @click="error = ''"><X :size="15" /></button></div>
           <div v-for="warning in result?.warnings || []" :key="warning" class="warning-banner"><CircleAlert :size="15" /><span>{{ warning }}</span></div>
 
-          <div class="workbench-footer"><div class="footer-tools"><button class="text-button" @click="clearContent"><Trash2 :size="15" />清空</button><button class="text-button" :disabled="!result && !currentTool.secondaryInputLabel" @click="swap"><ArrowLeftRight :size="15" />交换</button><span class="toolbar-divider"></span><button class="text-button" :disabled="!result" @click="guarded(async () => { const saved = await saveTextFile(result!.output, `${currentId}-result.${currentTool.extension || 'txt'}`); if (saved) notify('结果已保存'); })"><Download :size="15" />导出结果</button></div><button v-if="running && !batchRunning" class="primary-button cancel-button" @click="cancel()"><Square :size="13" />停止处理</button><button v-else class="primary-button" :disabled="batchRunning || binaryBusy" @click="processTool"><Play :size="14" fill="currentColor" />{{ selectedAction?.label || '开始处理' }}<kbd>{{ modifier }} ↵</kbd></button></div>
+          <div class="workbench-footer"><div class="footer-tools"><button class="text-button" @click="clearContent"><Trash2 :size="15" />清空</button><button v-if="currentId !== 'keygen'" class="text-button" :disabled="!result && !currentTool.secondaryInputLabel" @click="swap"><ArrowLeftRight :size="15" />交换</button><span class="toolbar-divider"></span><button v-if="currentId !== 'keygen'" class="text-button" :disabled="!result" @click="guarded(async () => { const saved = await saveTextFile(result!.output, `${currentId}-result.${currentTool.extension || 'txt'}`); if (saved) notify('结果已保存'); })"><Download :size="15" />导出结果</button></div><button v-if="currentId === 'packet-signing'" class="text-button" :disabled="!result || stale" @click="useCanonicalText">发送到签名工具<ArrowRight :size="14" /></button><button v-if="running && !batchRunning" class="primary-button cancel-button" @click="cancel()"><Square :size="13" />停止处理</button><button v-else class="primary-button" :disabled="batchRunning || binaryBusy" @click="processTool"><Play :size="14" fill="currentColor" />{{ selectedAction?.label || '开始处理' }}<kbd>{{ modifier }} ↵</kbd></button></div>
           </template>
           <SvgaPreview v-else :key="activeTab.id" :tab="activeTab" @open="openSvgaFile" @clear="clearContent" @loaded="svgaLoaded" />
         </section>

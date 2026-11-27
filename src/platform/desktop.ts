@@ -325,3 +325,20 @@ export async function onLauncherShown(handler: () => void): Promise<UnlistenFn> 
   window.addEventListener('my-tools:show-launcher', handler);
   return () => window.removeEventListener('my-tools:show-launcher', handler);
 }
+
+/** Only the native dialog can change the persistent root directory. */
+export async function getKeyDirectory(): Promise<string> {
+  return isDesktop() ? invoke<string>('get_key_directory') : '桌面应用默认：Documents/My Tools/Keys';
+}
+export async function chooseKeyDirectory(): Promise<string | null> {
+  if (!isDesktop()) throw new Error('默认目录只能在桌面应用中修改。');
+  return invoke<string | null>('choose_key_directory');
+}
+export async function saveNamedKeyBundle(name: string, algorithm: string, files: { name: string; bytes: number[] }[]): Promise<string> {
+  if (!isDesktop()) throw new Error('命名目录保存需要桌面应用。');
+  return invoke<string>('save_key_bundle', { name, algorithm, files });
+}
+export async function openKeyDirectory(): Promise<void> {
+  if (!isDesktop()) throw new Error('目录打开需要桌面应用。');
+  return invoke<void>('open_key_directory');
+}
