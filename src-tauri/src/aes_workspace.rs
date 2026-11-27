@@ -1,6 +1,7 @@
-//! Explicit opt-in persistence for all tool workspaces.
-//! Native full snapshots use AES-GCM with a randomly generated key held in the
-//! platform credential store. A missing/locked key must never fall back to plaintext.
+//! Complete automatic local workspaces. New snapshots use an app-local
+//! random key and authenticated encryption, without a credential-store setup.
+//! Existing OS-keychain encrypted snapshots retain their original protection.
+//! Unreadable snapshots are never silently replaced.
 use aes_gcm::{
     aead::{Aead, Payload},
     Aes256Gcm, KeyInit, Nonce,
@@ -20,6 +21,7 @@ use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 const CONFIG: &[u8] = b"MT-AES-CONFIG\x01";
 const FULL: &[u8] = b"MT-AES-WORKSPACE\x01";
+const LOCAL_FULL: &[u8] = b"MT-LOCAL-WORKSPACE\x01";
 const SERVICE: &str = "io.xzcode.mytools";
 const ACCOUNT: &str = "aes-workspace-v1";
 
@@ -50,31 +52,56 @@ fn read_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
     }
 }
 
-fn session_key(create: bool) -> Result<Vec<u8>, String> {
+fn session_key() -> Result<Vec<u8>, String> {
     let entry = credential()?;
     match entry.get_secret() {
         Ok(key) if key.len() == 32 => Ok(key),
-        Ok(_) => Err("系统安全凭据中的 AES 工作台密钥无效。".into()),
-        Err(KeyringError::NoEntry) if create => {
-            let mut key = vec![0u8; 32];
-            getrandom::fill(&mut key).map_err(|_| "无法生成安全随机密钥。".to_string())?;
-            entry
-                .set_secret(&key)
-                .map_err(|_| "无法保存密钥到系统安全凭据库；未保存敏感工作台。".to_string())?;
-            Ok(key)
-        }
-        Err(KeyringError::NoEntry) => {
-            Err("AES 工作台的系统安全密钥不存在；无法恢复加密存档。".into())
-        }
-        Err(_) => Err("无法读取系统安全凭据；请解锁凭据库后重试。".into()),
+        Ok(_) => Err("旧版系统凭据中的工作台密钥无效。".into()),
+        Err(KeyringError::NoEntry) => Err("旧版工作台的系统密钥不存在；无法恢复。".into()),
+        Err(_) => Err("旧版工作台需要解锁系统凭据库后恢复。".into()),
     }
 }
 
+fn local_key_path(path: &Path) -> PathBuf {
+    path.with_extension("local-key")
+}
+
+fn local_key(path: &Path, create: bool) -> Result<Vec<u8>, String> {
+    let target = local_key_path(path);
+    if let Some(key) = read_file(&target)? {
+        return if key.len() == 32 {
+            Ok(key)
+        } else {
+            Err("本地存档密钥无效；旧存档保留。".into())
+        };
+    }
+    if !create {
+        return Err("本地存档密钥缺失；旧存档保留。".into());
+    }
+    let parent = target.parent().ok_or("无法定位本地存档目录。")?;
+    fs::create_dir_all(parent).map_err(|_| "无法创建本地存档目录。")?;
+    let mut key = vec![0u8; 32];
+    getrandom::fill(&mut key).map_err(|_| "无法生成本地存档密钥。")?;
+    // NamedTempFile creates private files on Unix. On Windows it inherits the
+    // user's app-config directory ACL. The key is local, not an OS vault.
+    let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(|_| "无法创建本地存档密钥。")?;
+    tmp.write_all(&key).map_err(|_| "无法写入本地存档密钥。")?;
+    tmp.as_file()
+        .sync_all()
+        .map_err(|_| "无法同步本地存档密钥。")?;
+    tmp.persist_noclobber(&target)
+        .map_err(|_| "本地存档密钥已存在或无法保存；未覆盖。")?;
+    #[cfg(unix)]
+    if let Ok(dir) = fs::File::open(parent) {
+        let _ = dir.sync_all();
+    }
+    Ok(key)
+}
 fn cipher(key: &[u8]) -> Result<Aes256Gcm, String> {
     Aes256Gcm::new_from_slice(key).map_err(|_| "AES 工作台密钥无效。".into())
 }
-fn seal(key: &[u8], nonce: &[u8; 12], data: &[u8]) -> Result<Vec<u8>, String> {
-    let mut output = FULL.to_vec();
+fn seal(header: &[u8], key: &[u8], nonce: &[u8; 12], data: &[u8]) -> Result<Vec<u8>, String> {
+    let mut output = header.to_vec();
     output.extend_from_slice(nonce);
     output.extend(
         cipher(key)?
@@ -82,15 +109,15 @@ fn seal(key: &[u8], nonce: &[u8; 12], data: &[u8]) -> Result<Vec<u8>, String> {
                 Nonce::from_slice(nonce),
                 Payload {
                     msg: data,
-                    aad: FULL,
+                    aad: header,
                 },
             )
             .map_err(|_| "AES 工作台加密失败。".to_string())?,
     );
     Ok(output)
 }
-fn unseal(key: &[u8], data: &[u8]) -> Result<Vec<u8>, String> {
-    let payload = data.strip_prefix(FULL).ok_or("AES 工作台格式无效。")?;
+fn unseal(header: &[u8], key: &[u8], data: &[u8]) -> Result<Vec<u8>, String> {
+    let payload = data.strip_prefix(header).ok_or("AES 工作台格式无效。")?;
     if payload.len() < 28 {
         return Err("AES 工作台加密数据不完整。".into());
     }
@@ -99,7 +126,7 @@ fn unseal(key: &[u8], data: &[u8]) -> Result<Vec<u8>, String> {
             Nonce::from_slice(&payload[..12]),
             Payload {
                 msg: &payload[12..],
-                aad: FULL,
+                aad: header,
             },
         )
         .map_err(|_| "AES 工作台认证失败；可能已损坏或密钥不匹配。".into())
@@ -375,9 +402,14 @@ fn load_impl(path: &Path) -> Result<Option<String>, String> {
     };
     let (bytes, encrypted) = if let Some(bytes) = data.strip_prefix(CONFIG) {
         (bytes.to_vec(), false)
+    } else if data.starts_with(LOCAL_FULL) {
+        let mut key = local_key(path, false)?;
+        let result = unseal(LOCAL_FULL, &key, &data);
+        key.fill(0);
+        (result?, true)
     } else if data.starts_with(FULL) {
-        let mut key = session_key(false)?;
-        let result = unseal(&key, &data);
+        let mut key = session_key()?;
+        let result = unseal(FULL, &key, &data);
         key.fill(0);
         (result?, true)
     } else {
@@ -392,12 +424,17 @@ fn load_impl(path: &Path) -> Result<Option<String>, String> {
 fn save_impl(path: &Path, data: &str) -> Result<(), String> {
     let full = validate(data)?;
     let output = if full {
-        // Never create a replacement key for an existing encrypted vault.
-        let existing = read_file(path)?.is_some_and(|bytes| bytes.starts_with(FULL));
-        let mut key = session_key(!existing)?;
+        let existing = read_file(path)?;
+        let (header, mut key) = match existing.as_deref() {
+            Some(bytes) if bytes.starts_with(FULL) => (FULL, session_key()?),
+            Some(bytes) if bytes.starts_with(LOCAL_FULL) => (LOCAL_FULL, local_key(path, false)?),
+            None => (LOCAL_FULL, local_key(path, true)?),
+            Some(bytes) if bytes.starts_with(CONFIG) => (LOCAL_FULL, local_key(path, true)?),
+            _ => return Err("无法识别旧存档；未覆盖。".into()),
+        };
         let mut nonce = [0u8; 12];
         getrandom::fill(&mut nonce).map_err(|_| "无法生成安全随机 IV。")?;
-        let result = seal(&key, &nonce, data.as_bytes());
+        let result = seal(header, &key, &nonce, data.as_bytes());
         key.fill(0);
         result?
     } else {
@@ -445,22 +482,29 @@ pub(crate) async fn clear_aes_workspace(
         let state = app.state::<WorkspaceStore>();
         let _guard = state.lock.lock().map_err(|_| "AES 工作台存储暂不可用。")?;
         let target = path(&app)?;
+        let legacy = read_file(&target)
+            .ok()
+            .flatten()
+            .is_some_and(|bytes| bytes.starts_with(FULL));
         match fs::remove_file(&target) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(_) => return Err("无法删除 AES 工作台存档。".into()),
         }
-        // Clearing the vault removes the stored payload even if the desktop
-        // currently has no available keychain (e.g. a headless Linux session).
-        let warning = match credential() {
-            Ok(entry) => match entry.delete_credential() {
-                Ok(()) | Err(KeyringError::NoEntry) => None,
-                Err(_) => {
-                    Some("工作台文件已清除，但无法确认系统凭据中的存档密钥已删除。".to_string())
-                }
-            },
-            Err(_) => Some("工作台文件已清除，系统凭据库当前不可用。".to_string()),
+        let mut warning = match fs::remove_file(local_key_path(&target)) {
+            Ok(()) => None,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(_) => Some("存档已清除，但本地存档密钥文件未能删除。".to_string()),
         };
+        if legacy {
+            match credential() {
+                Ok(entry) => match entry.delete_credential() {
+                    Ok(()) | Err(KeyringError::NoEntry) => {}
+                    Err(_) => warning = Some("存档已清除，但旧版系统凭据未能删除。".into()),
+                },
+                Err(_) => warning = Some("存档已清除，旧版系统凭据库当前不可用。".into()),
+            }
+        }
         Ok(warning)
     })
     .await
@@ -528,14 +572,36 @@ mod tests {
     fn full_vault_authenticates_and_does_not_contain_plaintext() {
         let key = [7u8; 32];
         let clear = b"test-only-private-workspace-data";
-        let mut bytes = seal(&key, &[1; 12], clear).unwrap();
+        let mut bytes = seal(FULL, &key, &[1; 12], clear).unwrap();
         assert!(!bytes.windows(clear.len()).any(|s| s == clear));
-        assert_eq!(unseal(&key, &bytes).unwrap(), clear);
-        assert!(unseal(&[8; 32], &bytes).is_err());
+        assert_eq!(unseal(FULL, &key, &bytes).unwrap(), clear);
+        assert!(unseal(FULL, &[8; 32], &bytes).is_err());
         let last = bytes.len() - 1;
         bytes[last] ^= 1;
-        assert!(unseal(&key, &bytes).is_err());
+        assert!(unseal(FULL, &key, &bytes).is_err());
     }
+    #[test]
+    fn automatic_local_vault_roundtrip_and_missing_key_preserves_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("workspace");
+        let data = r#"{"version":2,"mode":"full","tabs":[{"options":{"prefix":"fixture-prefix","rawKey":"fixture-key"}}]}"#;
+        save_impl(&path, data).unwrap();
+        assert_eq!(load_impl(&path).unwrap().as_deref(), Some(data));
+        let first = fs::read(&path).unwrap();
+        assert!(first.starts_with(LOCAL_FULL));
+        assert!(!first.windows(14).any(|s| s == b"fixture-prefix"));
+        let key = fs::read(local_key_path(&path)).unwrap();
+        save_impl(&path, data).unwrap();
+        let second = fs::read(&path).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(fs::read(local_key_path(&path)).unwrap(), key);
+        fs::remove_file(local_key_path(&path)).unwrap();
+        assert!(load_impl(&path).is_err());
+        assert!(save_impl(&path, data).is_err());
+        assert_eq!(fs::read(&path).unwrap(), second);
+        assert!(!local_key_path(&path).exists());
+    }
+
     #[test]
     fn config_store_rejects_sensitive_values() {
         let data = r#"{"version":1,"mode":"config","fields":{"key":true,"iv":true,"aad":true,"prefix":true,"input":true,"output":true},"activeId":"a","tabs":[{"id":"a","name":"test","action":"encrypt","input":"","options":{"rawKey":"","prefix":"","cipherMode":"ECB"},"result":null,"error":"","stale":false,"elapsed":0,"outputView":"text"}],"closed":[],"templates":[]}"#;

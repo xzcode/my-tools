@@ -35,7 +35,16 @@ pub fn valid_tool_id(id: &str) -> bool {
 
 impl Preferences {
     pub fn validate(&mut self) -> Result<(), String> {
-        if !["system", "light", "dark"].contains(&self.theme.as_str()) {
+        if ![
+            "system",
+            "light",
+            "dark",
+            "pure-black",
+            "gray",
+            "soft-light",
+        ]
+        .contains(&self.theme.as_str())
+        {
             return Err("无效的主题设置".into());
         }
         if self.shortcut.len() > 128 || self.shortcut.chars().any(char::is_control) {
@@ -112,9 +121,19 @@ mod tests {
         let path = dir.path().join("preferences.json");
         let mut prefs = Preferences::default();
         write(&path, &prefs).unwrap();
-        prefs.theme = "dark".into();
-        write(&path, &prefs).unwrap();
-        assert_eq!(read(&path), prefs);
+        for theme in [
+            "dark",
+            "pure-black",
+            "gray",
+            "soft-light",
+            "light",
+            "system",
+        ] {
+            prefs.theme = theme.into();
+            prefs.validate().unwrap();
+            write(&path, &prefs).unwrap();
+            assert_eq!(read(&path), prefs);
+        }
     }
 
     #[test]

@@ -80,7 +80,7 @@ test('tool search keyboard navigation and independent launcher use actual routes
   await expect(page.locator('h1')).toHaveText('Base64 编解码');
 });
 
-test('theme and favorites persist while payload and HMAC key never do', async ({ page }, info) => {
+test('themes, favorites, payload and HMAC parameters persist locally', async ({ page }, info) => {
   await tool(page, 'hash');
   const secret = 'private-hmac-key-do-not-save-490817';
   const body = 'private-request-body-do-not-save-765130';
@@ -93,14 +93,24 @@ test('theme and favorites persist while payload and HMAC key never do', async ({
   await page.getByRole('button', { name: '切换深浅主题', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.screenshot({ path: info.outputPath('dark-theme.png'), fullPage: true });
+  await page.getByRole('button', { name: /偏好设置/ }).click();
+  for (const [label, theme] of [['纯黑','pure-black'],['灰色','gray'],['柔和白色','soft-light']] as const) {
+    await page.getByRole('button', { name: label, exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await page.screenshot({ path: info.outputPath(theme+'.png') });
+  }
+  await page.getByRole('button', { name: '关闭偏好设置' }).click();
+  await page.locator('.aes-save-status').click();
+  await page.getByRole('button', { name: '立即保存', exact: true }).click();
+  await expect(page.locator('.aes-save-status')).toContainText('已保存');
   const saved = await page.evaluate(() => JSON.stringify(localStorage));
   expect(saved).not.toContain(secret);
   expect(saved).not.toContain(body);
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'soft-light');
   await expect(page.getByRole('button', { name: '取消收藏', exact: true })).toBeVisible();
-  await expect(page.getByRole('textbox', { name: '输入内容', exact: true })).toHaveValue('');
-  await expect(page.getByLabel('HMAC 密钥', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: '输入内容', exact: true })).toHaveValue(body);
+  await expect(page.getByLabel('HMAC 密钥', { exact: true })).toHaveValue(secret);
 });
 
 test('catastrophic regex can be cancelled without freezing the interface, then recovers', async ({ page }) => {
@@ -156,7 +166,7 @@ test('cURL parsing causes no outgoing requests', async ({ page }) => {
 });
 
 
-test('AES encrypts and decrypts locally without saving the passphrase', async ({ page }) => {
+test('AES encrypts and decrypts locally without writing the passphrase to preferences', async ({ page }) => {
   await tool(page, 'aes');
   const passphrase = 'private-ui-passphrase-2026!';
   const original = '你好，桌面 AES 👋';
@@ -291,33 +301,41 @@ test('AES tabs isolate prefix, input and output and restore a closed tab', async
   await expect(output(page)).toHaveValue('project A');
 });
 
-test('AES session restore keeps only configuration by default and requires consent for encrypted full data', async ({ page }) => {
+test('AES session and right-side history restore every parameter without consent or filters', async ({ page }) => {
   await tool(page, 'aes');
   await page.getByRole('button', { name: 'Java ECB/PKCS5' }).click();
   const key = '0123456789abcdef0123456789abcdef';
   await page.getByLabel('原始 Key', { exact: true }).fill(key);
   await page.getByLabel('密文前缀', { exact: true }).fill('fixture-prefix:');
+  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill('fixture-text-data');
+  await process(page);
+  await expect(output(page)).toHaveValue(/^fixture-prefix:/);
+  const cipher = await output(page).inputValue();
+  await page.getByRole('button', { name: '关闭标签 AES 1', exact: true }).click();
   await page.locator('.aes-save-status').click();
   await page.getByRole('button', { name: '立即保存', exact: true }).click();
   await expect(page.locator('.aes-save-status')).toContainText('已保存');
   await page.reload();
+  const panel=page.getByRole('complementary',{name:'历史记录面板'});
+  await expect(panel).toBeVisible();
+  const panelBox=await panel.boundingBox(),workBox=await page.locator('main.workspace').boundingBox();
+  expect(panelBox!.x).toBeGreaterThanOrEqual(workBox!.x+workBox!.width-1);
+  expect(panelBox!.height).toBeGreaterThan(850);
+  await panel.getByLabel('历史类型').selectOption('closed');
+  await panel.getByRole('button', { name: '恢复历史 AES 1', exact: true }).click();
   await expect(page.getByLabel('加密模式', { exact: true })).toHaveValue('ECB');
-  await expect(page.getByLabel('原始 Key', { exact: true })).toHaveValue('');
-  await expect(page.getByLabel('密文前缀', { exact: true })).toHaveValue('');
-  await page.getByLabel('原始 Key', { exact: true }).fill(key);
-  await page.getByLabel('密文前缀', { exact: true }).fill('fixture-prefix:');
-  await page.getByRole('textbox', { name: '输入内容', exact: true }).fill('fixture-text-data');
-  await page.locator('.aes-save-status').click();
-  await page.getByLabel('AES 自动保存范围').selectOption('full');
-  await page.getByRole('button', { name: '确认开启加密保存' }).click();
-  await expect(page.getByLabel('AES 自动保存范围')).toHaveValue('full');
-  await expect(page.locator('.aes-save-status')).toContainText('已保存');
-  await page.reload();
   await expect(page.getByLabel('原始 Key', { exact: true })).toHaveValue(key);
   await expect(page.getByLabel('密文前缀', { exact: true })).toHaveValue('fixture-prefix:');
   await expect(page.getByRole('textbox', { name: '输入内容', exact: true })).toHaveValue('fixture-text-data');
+  await expect(output(page)).toHaveValue(cipher);
+  await expect(panel).toBeVisible();
+  await panel.getByRole('button',{name:'收起历史记录'}).click();
+  await expect(panel).not.toBeVisible();
+  await page.getByRole('button',{name:'历史记录',exact:true}).click();
+  await expect(panel).toBeVisible();
   await page.locator('.aes-save-status').click();
   await page.getByRole('button', { name: '清除全部工作台' }).click();
   await page.getByRole('button', { name: '确认清除', exact: true }).click();
   await expect(page.getByLabel('密文前缀', { exact: true })).toHaveValue('');
+  await expect(panel.getByText('暂无符合条件的记录。')).toBeVisible();
 });

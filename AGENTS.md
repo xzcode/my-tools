@@ -4,7 +4,7 @@ My Tools is a public, MIT-licensed, offline-first personal desktop toolbox built
 
 - Read `docs/HANDOFF.md` before continuing work. Keep completed work, remaining limitations and verification evidence accurate.
 - Keep pure transformations in `src/core`, off-main-thread scheduling in the Worker layer, and OS access behind `src/platform/desktop.ts` / Rust commands.
-- Do not persist processing content by default. Unified tool workspace is the explicit opt-in exception: selected fields may be saved in an authenticated encrypted vault protected by an OS credential-store key, never as plaintext. Do not automatically overwrite an unreadable vault.
+- All tool parameters, input/output, files, templates and history are saved automatically in the complete local workspace. Do not filter fields or automatically prune history; cleanup is user-controlled. New workspaces use an app-local random key with authenticated encryption; old OS-keychain vaults retain their original protection. Do not automatically overwrite an unreadable vault or upload content.
 - Preserve AES simple-mode v0.2.0 password-based JSON ciphertext compatibility. The advanced mode uses exact-length raw AES Key and IV for interoperability. Warn against GCM nonce reuse; CBC is unauthenticated and ECB is only supported for legacy Java AES/ECB/PKCS5Padding interoperability (no IV, no authentication). Prefer GCM for new use.
 - No implicit network requests, shell execution, clipboard polling or unrestricted filesystem permissions. cURL is a parser, never a request executor.
 - Never replace lossless JSON parsing with ordinary `JSON.parse` for user JSON data; long integer precision is part of expected behavior.

@@ -3,7 +3,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 export interface DesktopPreferences {
-  theme: 'system' | 'light' | 'dark';
+  theme: 'system' | 'light' | 'dark' | 'pure-black' | 'gray' | 'soft-light';
   favorites: string[];
   recent: string[];
   shortcut: string;
@@ -42,7 +42,7 @@ function validatePreferences(value: unknown): DesktopPreferences {
   const record = value as Record<string, unknown>;
   if (Object.keys(record).some(key => !preferenceKeys.includes(key))) throw new Error('只允许保存工具偏好，不能保存处理内容');
   const id = (s: unknown): s is string => typeof s === 'string' && /^[a-z0-9-]{1,64}$/.test(s);
-  if (!['system', 'light', 'dark'].includes(String(record.theme))
+  if (!['system', 'light', 'dark', 'pure-black', 'gray', 'soft-light'].includes(String(record.theme))
     || typeof record.closeToTray !== 'boolean'
     || typeof record.shortcut !== 'string' || record.shortcut.length > 128 || /[\u0000-\u001f]/.test(record.shortcut)
     || !id(record.lastTool)

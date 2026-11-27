@@ -1,6 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { restoreUnifiedWorkspace, snapshotWorkspace } from '../core/workspace';
 
 const DB_NAME = 'my-tools-aes-workspace-v1';
 const STORE = 'vault';
@@ -56,12 +55,6 @@ export async function saveAesWorkspace(json: string): Promise<void> {
   if (isTauri()) return invoke<void>('save_aes_workspace', { data: json });
   // Browser preview is deliberately not represented as an OS-keychain vault.
   // Use a non-extractable Web Crypto key stored via structured clone in IDB.
-  const state = restoreUnifiedWorkspace(json);
-  if (state.mode !== 'full') {
-    // Re-project in the browser so config-only records cannot contain secrets.
-    await previewWrite({ mode: 'config', json: JSON.stringify(snapshotWorkspace(state)) });
-    return;
-  }
   const previous = await previewRead();
   const key = previous?.mode === 'full' ? previous.key : await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   const iv = crypto.getRandomValues(new Uint8Array(12));

@@ -11,10 +11,10 @@ test('all-tool tabs and history restore, single delete and date cleanup',async({
  await input(page).fill('other');await run(page);await expect(output(page)).toHaveValue('other');
  await page.getByRole('tab',{name:'字符串拼接 1',exact:true}).click();await expect(input(page)).toHaveValue('first\nsecond');
  await page.getByRole('button',{name:'关闭标签 字符串拼接 1',exact:true}).click();await expect(output(page)).toHaveValue('other');
- await page.getByRole('button',{name:'历史记录',exact:true}).click();
+ await expect(page.getByRole('complementary',{name:'历史记录面板'})).toBeVisible();
  await page.getByLabel('历史类型').selectOption('closed');
  await page.getByRole('button',{name:'恢复历史 字符串拼接 1',exact:true}).click();await expect(input(page)).toHaveValue('first\nsecond');
- await page.getByRole('button',{name:'历史记录',exact:true}).click();
+ await expect(page.getByRole('complementary',{name:'历史记录面板'})).toBeVisible();
  await page.getByRole('button',{name:'删除历史 字符串拼接 1',exact:true}).click();await expect(page.getByText('暂无符合条件的记录。')).toBeVisible();
  await page.getByLabel('历史类型').selectOption('all');
  await page.getByLabel('历史清理时间').selectOption('custom');
@@ -23,8 +23,7 @@ test('all-tool tabs and history restore, single delete and date cleanup',async({
  await page.getByRole('button',{name:/^清理 \d+ 条$/}).click();await page.getByRole('button',{name:'确认清理',exact:true}).click();
  await expect(page.getByText('暂无符合条件的记录。')).toBeVisible();await expect(input(page)).toHaveValue('first\nsecond');
  await page.locator('.aes-save-status').click();
- await page.getByLabel('工作台自动保存范围').selectOption('full');
- await page.getByRole('button',{name:'确认开启加密保存'}).click();
+ await page.getByRole('button',{name:'立即保存',exact:true}).click();
  await expect(page.locator('.aes-save-status')).toContainText('已保存');
  await page.getByRole('button',{name:'关闭标签 字符串拼接 1',exact:true}).click();
  await expect(page.locator('.aes-save-status')).toContainText('已保存');

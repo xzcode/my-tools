@@ -46,17 +46,56 @@ describe('unified workspace',()=>{
    expect(json.length).toBeGreaterThan(32*1024*1024);
    expect(restoreUnifiedWorkspace(json).tabs[0]!.input).toBe(text);
  });
- it('metadata-only snapshots exclude payloads, private text options and files, including history',()=>{
-   const w=newWorkspace(),t=newToolTab('aes');t.input='SECRET_BODY';t.secondaryInput='SECRET_SECOND';t.options.rawKey='SECRET_KEY';t.options.prefix='SECRET_PREFIX';t.fileName='SECRET_FILE';t.result={output:'SECRET_RESULT'};
-   w.tabs.push(t);w.history.push({id:'closed-a',at:10,type:'closed',tab:t});
-   const raw=JSON.stringify(snapshotWorkspace(w));expect(raw).not.toContain('SECRET_');
-   const r=restoreUnifiedWorkspace(raw);expect(r.history[0]?.tab.input).toBe('');expect(r.tabs[1]?.options.rawKey).toBe('');
-   expect(duplicateTab(t).options.rawKey).toBe('');
+ it('saves all AES parameters, input and output in tabs, closed/run history, copies and custom templates by default',()=>{
+   const ws=useWorkspace();
+   try {
+     ws.selectTool('aes');
+     const t=ws.active.value;
+     t.options={...t.options,profile:'advanced',cipherMode:'GCM',rawKey:'fixture-key',password:'fixture-password',prefix:'{ENC}: 中文',iv:'fixture-iv',aad:'fixture-aad',keyEncoding:'utf8',ivEncoding:'utf8',aadEncoding:'utf8'};
+     t.input='fixture body';t.secondaryInput='second';t.fileName='fixture.txt';t.result={output:'fixture result'};t.batch=[{name:'fixture',input:'batch body',output:'batch result',state:'done'}];
+     expect(ws.saveTemplate('Project')).toBe(true);
+     ws.addHistory(t,'run');
+     ws.close(t.id);
+     const r=restoreUnifiedWorkspace(JSON.stringify(snapshotWorkspace(ws.state.value)));
+     expect(r.mode).toBe('full');
+     for(const h of r.history) {
+       expect(h.tab.options).toEqual(t.options);
+       expect(h.tab.input).toBe(t.input);
+       expect(h.tab.result).toEqual(t.result);
+       expect(h.tab.batch).toEqual(t.batch);
+     }
+     expect(r.templates[0]?.options).toEqual(t.options);
+     ws.state.value=r;
+     expect(ws.restoreHistory(r.history[0]!.id)).toBe('aes');
+     expect(ws.active.value.options).toEqual(t.options);
+     expect(ws.active.value.input).toBe(t.input);
+     expect(ws.active.value.result).toEqual(t.result);
+     const copy=duplicateTab(ws.active.value);
+     expect(copy.id).not.toBe(ws.active.value.id);
+     expect(copy.options).toEqual(t.options);
+     expect(copy.input).toBe(t.input);
+     expect(copy.result).toEqual(t.result);
+     ws.active.value.options.prefix='different';
+     ws.applyTemplate(r.templates[0]!.id);
+     expect(ws.active.value.options).toEqual(t.options);
+   }finally{ws.dispose();}
  });
- it('full-save restores history and file bytes; respects each data selection',()=>{
-   const w=newWorkspace(),t=newToolTab('svga');t.input='aGVsbG8=';t.fileName='test.svga';t.result={output:'metadata'};w.mode='full';w.tabs.push(t);w.history.push({id:'run-a',at:100,type:'run',tab:t});
-   let r=restoreUnifiedWorkspace(JSON.stringify(snapshotWorkspace(w)));expect(r.history[0]?.tab.input).toBe(t.input);expect(r.tabs[1]?.fileName).toBe(t.fileName);
-   w.fields.input=false;r=restoreUnifiedWorkspace(JSON.stringify(snapshotWorkspace(w)));expect(r.history[0]?.tab.input).toBe('');expect(r.tabs[1]?.fileName).toBe('');
+ it('upgrades legacy config and field settings without inventing lost values',()=>{
+   const w=newWorkspace(),t=newToolTab('aes');
+   w.mode='config';w.fields.key=false;w.fields.prefix=false;
+   t.options={...t.options,rawKey:'',prefix:'',profile:'advanced',cipherMode:'ECB'};
+   w.tabs.push(t);
+   const r=restoreUnifiedWorkspace(JSON.stringify(w));
+   expect(r.mode).toBe('full');expect(Object.values(r.fields).every(Boolean)).toBe(true);
+   expect(r.tabs[1]?.options.cipherMode).toBe('ECB');expect(r.tabs[1]?.options.rawKey).toBe('');
+   r.tabs[1]!.options.rawKey='new key';r.tabs[1]!.options.prefix='new prefix';
+   expect(restoreUnifiedWorkspace(JSON.stringify(snapshotWorkspace(r))).tabs[1]?.options).toMatchObject({rawKey:'new key',prefix:'new prefix'});
+ });
+ it('restores native tool text options, files, batch and invalid draft numeric parameters without dropping them',()=>{
+   const w=newWorkspace(),t=newToolTab('svga');t.input='aGVsbG8=';t.fileName='test.svga';t.result={output:'metadata'};w.tabs.push(t);w.history.push({id:'run-a',at:100,type:'run',tab:t});
+   const draft=newToolTab('password');draft.options.length='';w.tabs.push(draft);
+   const r=restoreUnifiedWorkspace(JSON.stringify(snapshotWorkspace(w)));
+   expect(r.history[0]?.tab.input).toBe(t.input);expect(r.tabs[1]?.fileName).toBe(t.fileName);expect(r.tabs[2]?.options.length).toBe('');
  });
  it('migrates existing AES tabs and closed records',()=>{
    const old=initialWorkspace();old.mode='full';old.tabs[0]!.input='saved text';old.closed.push({...old.tabs[0]!,id:'old-closed'});

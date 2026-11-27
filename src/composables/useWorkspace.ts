@@ -2,8 +2,8 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { isNativeCrypto } from '../core/crypto-catalog';
 import { executeCrypto } from '../platform/crypto-tools';
 import { getTool } from '../core/catalog';
-import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, builtInTemplates } from '../core/workspace';
-import type { ToolTab, HistoryEntry, SaveMode } from '../core/workspace';
+import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, builtInTemplates } from '../core/workspace';
+import type { ToolTab, HistoryEntry } from '../core/workspace';
 import type { ToolResult, ToolRequest } from '../core/types';
 import { useToolRunner } from './useToolRunner';
 import { useBinaryRunner } from './useBinaryRunner';
@@ -71,12 +71,6 @@ export function useWorkspace() {
     for(let i=0;i<4;i++){await nextTick();const at=revision;if(!await flush())return false;await nextTick();if(at===revision)return true;}
     saveStatus.value='error';saveError.value='工作台仍在变化，请停止任务后重试。';return false;
   }
-  async function setMode(mode:SaveMode){
-    if(blocked.value)return false;
-    const previous=state.value.mode;state.value.mode=mode;
-    if(await flushLatest())return true;
-    state.value.mode=previous;await nextTick();clearTimeout(timer);saveStatus.value='error';return false;
-  }
   function select(id:string){const t=state.value.tabs.find(t=>t.id===id);if(t){state.value.activeIds[t.toolId]=id;toolId.value=t.toolId;}}
   function canCreate(id=toolId.value){return !!getTool(id);}
   function create(){
@@ -127,10 +121,10 @@ export function useWorkspace() {
     const t=a.splice(from,1)[0]!;a.splice(to,0,t);state.value.tabs=a;
   }
   function moveSelection(direction:number){const i=tabs.value.findIndex(t=>t.id===active.value.id);select(tabs.value[(i+direction+tabs.value.length)%tabs.value.length]!.id);}
-  function applyTemplate(id:string){const t=templates.value.find(x=>x.id===id);if(t&&toolId.value==='aes')active.value.options={...active.value.options,...t.options,iv:'',aad:''};}
+  function applyTemplate(id:string){const t=templates.value.find(x=>x.id===id);if(t&&toolId.value==='aes')active.value.options=state.value.templates.some(x=>x.id===id)?{...toolDefaults('aes'),...clone(t.options)}:{...active.value.options,...t.options,iv:'',aad:''};}
   function saveTemplate(name:string,id?:string){
     name=name.trim().slice(0,100);if(!name||toolId.value!=='aes')return false;
-    const opts=safeOptions('aes',active.value.options),t=state.value.templates.find(x=>x.id===id);
+    const opts=clone(active.value.options),t=state.value.templates.find(x=>x.id===id);
     if(t){t.name=name;t.options=opts;return true;}
     state.value.templates.push({id:crypto.randomUUID(),name,options:opts});return true;
   }
@@ -158,7 +152,7 @@ export function useWorkspace() {
   async function runBatch(t=active.value){
     if(!t.batch.length||busy(t))return;
     const token=(tokens.get(t.id)??0)+1;tokens.set(t.id,token);batchJobs.value=[...batchJobs.value,t.id];
-    const req=requestFor(t);
+    const req=requestFor(t), before=clone(t);
     for(const item of t.batch){item.state='waiting';item.output=undefined;item.error=undefined;}
     for(const item of t.batch){
       if(!live(t,token))break;item.state='running';
@@ -166,7 +160,7 @@ export function useWorkspace() {
         item.output=value.output;item.state='done';
       }catch(e){if(!live(t,token))break;item.error=e instanceof Error?e.message:String(e);item.state='error';}
     }
-    if(live(t,token)){batchJobs.value=batchJobs.value.filter(x=>x!==t.id);addHistory(t,'run');}
+    if(live(t,token)){batchJobs.value=batchJobs.value.filter(x=>x!==t.id);addHistory({...before,batch:clone(t.batch),batchVisible:t.batchVisible},'run');}
   }
   function binaryRunnerFor(id:string){let r=binaryRunners.get(id);if(!r){r=useBinaryRunner();binaryRunners.set(id,r);}return r;}
   async function runBinary(t:ToolTab,request:Parameters<BinaryRunner['runBinary']>[0]){
@@ -182,5 +176,5 @@ export function useWorkspace() {
   }
   function dispose(){paused=true;clearTimeout(timer);for(const t of state.value.tabs)stop(t.id);runners.clear();binaryRunners.clear();}
   return {state,toolId,tabs,active,running,batchRunning,binaryBusy,closed,templates,jobs,batchJobs,binaryJobs,ready,restored,blocked,saveStatus,saveError,
-    initialize,flush,flushLatest,setMode,selectTool,select,create,canCreate,rename,duplicate,stop,close,closeOthers,reopen,restoreHistory,removeHistory,clearHistory,reorder,moveSelection,applyTemplate,saveTemplate,removeTemplate,clearActive,runActive,runBatch,runBinary,recordResult,addHistory,erase,dispose,defaults:toolDefaults};
+    initialize,flush,flushLatest,selectTool,select,create,canCreate,rename,duplicate,stop,close,closeOthers,reopen,restoreHistory,removeHistory,clearHistory,reorder,moveSelection,applyTemplate,saveTemplate,removeTemplate,clearActive,runActive,runBatch,runBinary,recordResult,addHistory,erase,dispose,defaults:toolDefaults};
 }
