@@ -27,6 +27,10 @@ RSA-SHA1 / RSA-MD5 / 旧 RSA PKCS1 加密、ECB、DES/3DES 等用于旧系统，
 
 ## 当前兼容范围与待验收
 
-OpenSSH 当前支持 RSA、Ed25519；不宣称支持所有 SSH 密钥类型。JWK 不支持多素数 RSA；JKS 非 ASCII 别名/口令暂不支持，独立 Java keytool 互通尚未实测。证书验证不包含在线 OCSP/CRL、系统信任根自动加载。新原生工具运算在 Rust 后台执行，取消界面等待不等于中断正在运行的原生密码学操作。
+OpenSSH 当前支持 RSA、Ed25519；不宣称支持所有 SSH 密钥类型。JWK 不支持多素数 RSA；JKS 非 ASCII 别名/口令暂不支持，独立 Java 21 JCA 双向读写已通过（使用 Java KeyStore API，不是 keytool CLI）。证书验证不包含在线 OCSP/CRL、系统信任根自动加载。新原生工具运算在 Rust 后台执行，取消界面等待不等于中断正在运行的原生密码学操作。
 
 浏览器预览仅用于界面验收；独立 Rust 核心测试与 SSH/OpenSSL/Node 互通结果不能替代三平台原生集成及安装包验收。
+
+## Java 21 互通验收（M8.10）
+
+新增 src-tauri/crypto-core/tests/java_interop.rs 与 tests/java/MyToolsInterop.java，只生成临时测试密钥与证书。Java 21 独立读取 My Tools 生成的 JKS/PKCS12（含 JKS 独立条目口令），使用 SHA1withRSA/SHA256withRSA/SHA512withRSA 验签与反向签名，再写出 Java 容器供 My Tools 读取、校验公私钥与证书匹配，覆盖可信证书条目和篡改验签失败。Java AES/ECB/PKCS5Padding 与 OpenSSL 对照一致；前端固定 Java 密文向量独立回归。JKS 非 ASCII 别名与口令仍未支持。CI 强制安装 Java 21 并执行互通测试。测试不读取真实业务密钥。

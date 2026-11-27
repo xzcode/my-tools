@@ -1,9 +1,17 @@
 # My Tools · M1–M5 与后续增量交接
 
-日期：2026-11-27（Asia/Kuala_Lumpur）。**当前开发版本：0.7.0（M8 第二批，安装包待确认）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-27（Asia/Kuala_Lumpur）。**当前开发版本：0.7.0（M8.10 互通验证，安装包待确认）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
 
 
 
+
+## v0.7.0 · M8.10 Java 互通与原生构建
+
+- 独立 Java 21 JCA 互通测试真实通过：RSA SHA1/SHA256/SHA512 双向签验、JKS/PKCS12 双向读写及条目口令、可信证书、证书公私钥匹配、AES/ECB/PKCS5Padding 独立对照。JKS 仍支持 ASCII 别名/口令。
+- Java 测试代码在 src-tauri/crypto-core/tests/java_interop.rs 和 tests/java/MyToolsInterop.java，CI 通过 setup-java 安装 Java 21，设置 MY_TOOLS_REQUIRE_JAVA_INTEROP=1 禁止跳过。测试仅使用临时密钥。
+- 增加真实 Java 21 生成的前端 AES 固定密文向量。
+- 远端 master 仍为 19a91f6；直接 git push --dry-run 失败，原因是当前 SSH 主机未配置 GitHub HTTPS 认证。不得将未推送的本地开发提交视为已发布。
+- Linux 原生依赖在隔离 Debian 12 容器安装成功；原生检查与实际安装包以最终日志为准。尚无 Windows/macOS 新版构建证据。
 
 ## v0.7.0 · 通用密码学工具（M8 第二批）
 

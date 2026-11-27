@@ -1,6 +1,6 @@
 # My Tools 0.7.0（开发版）
 
-通用密码学工具第一、二批（共 31 项工具）：密钥生成、命名目录保存、可持久化默认目录、密钥匹配、PEM/DER 转换与公钥提取、原始报文/参数/JSON 响应签名验签、RSA/SM2 加解密、对称算法扩展、摘要与 KDF、CSR/自签名证书/X.509 解析。RSA-SHA1 明确为旧系统兼容选项。新增 JWK/OpenSSH、PKCS12/JKS、SM2 三种密文格式、DES/SM4-GCM/XChaCha20-Poly1305、BLAKE3/CRC32/Argon2id、SAN 与显式本地证书链验证、密钥组重命名和删除。OpenSSH 当前支持 RSA/Ed25519；JKS 当前限 ASCII 别名/口令，独立 Java keytool 互通待验收。见 [密码学工具指南](CRYPTO_TOOLS.md)。
+通用密码学工具第一、二批（共 31 项工具）：密钥生成、命名目录保存、可持久化默认目录、密钥匹配、PEM/DER 转换与公钥提取、原始报文/参数/JSON 响应签名验签、RSA/SM2 加解密、对称算法扩展、摘要与 KDF、CSR/自签名证书/X.509 解析。RSA-SHA1 明确为旧系统兼容选项。新增 JWK/OpenSSH、PKCS12/JKS、SM2 三种密文格式、DES/SM4-GCM/XChaCha20-Poly1305、BLAKE3/CRC32/Argon2id、SAN 与显式本地证书链验证、密钥组重命名和删除。OpenSSH 当前支持 RSA/Ed25519；JKS 当前限 ASCII 别名/口令，独立 Java 21 JCA 双向读写与 RSA SHA1/SHA256/SHA512 双向签验已通过。见 [密码学工具指南](CRYPTO_TOOLS.md)。
 
 本地工作区包含 v0.6.2 的无固定资源配额改造。尚未完成三平台原生安装包验收与正式发布。
 

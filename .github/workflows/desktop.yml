@@ -57,7 +57,13 @@ jobs:
       - run: npm ci
       - run: npm run check
       - uses: dtolnay/rust-toolchain@stable
-      - name: Native crypto core interoperability tests
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Native crypto core and independent Java interoperability tests
+        env:
+          MY_TOOLS_REQUIRE_JAVA_INTEROP: '1'
         run: cargo test --manifest-path src-tauri/crypto-core/Cargo.toml --locked
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
