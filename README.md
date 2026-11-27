@@ -1,121 +1,126 @@
-# My Tools Desktop
+# Toolbox EX
 
-个人日常使用的离线开发工具箱。基于 **Tauri 2 + Vue 3 + TypeScript + Rust**，面向 macOS Apple Silicon、Windows x64 和 Linux x64。
+**English** · [简体中文](README.zh-CN.md)
 
-主工作台用于编辑与文件处理；独立快捷窗口用于搜索、收藏和快速打开工具。转换在本机运行，无账号、无远程转换服务。
+An open-source, offline desktop toolbox for developers, built with **Tauri 2, Vue 3, TypeScript and Rust**. Toolbox EX brings 31 everyday utilities into one local workspace.
 
-## 工具
+No account required. No remote conversion service. Your data stays on your device.
 
-| 工具 | 能力 |
+[Releases](https://github.com/xzcode/toolbox-ex/releases) · [Build status](https://github.com/xzcode/toolbox-ex/actions/workflows/desktop.yml) · [User guide](docs/USAGE.md)
+
+## Features
+
+| Tool | Capabilities |
 | --- | --- |
-| JSON 工作台 | 格式化、压缩、校验、键排序、转义/反转义、路径提取、树视图；保留长整数精度 |
-| 字符串拼接 | 多行拼接、分隔符、前后缀、引号、空行处理、去重 |
-| 文本处理 | 去重、排序、替换、空白整理、大小写、HTML 转义 |
-| Base64 | UTF-8 中文与 Emoji、URL-safe、填充、十六进制字节模式 |
-| AES 加解密 | 多标签工作台、字面量密文前缀、可选加密会话恢复；简单 AES-256-GCM/PBKDF2；高级 GCM/CBC/ECB、AES-128/192/256、Key/IV、Padding、Hex/Base64、GCM Tag/AAD |
-| URL | 组件/完整 URI 编解码、参数解析与构建 |
-| 时间戳 | 秒/毫秒与日期互转、当前时间、时区显示 |
-| UUID/随机文本 | UUID v4、批量生成、加密随机源 |
-| 强密码生成器 | 12–128 字符、1–50 条、字符类别与易混淆字符过滤、安全随机抽样 |
-| 哈希/HMAC | SHA-256、SHA-512、HMAC、hex/Base64 输出 |
-| JWT | Header/Payload 与时间声明解析；不验证签名 |
-| SQL | 方言格式化、IN 条件生成与字符串转义 |
-| 正则 | 匹配、捕获组、替换、独立 Worker，可手动停止 |
-| Diff | 文本行/词对比、JSON 结构对比 |
-| 数据转换 | JSON、YAML、CSV 互转 |
-| cURL | 本地解析请求、参数、Header、Body；不执行命令、不发送请求 |
-| 密钥生成 / 匹配 / 转换 | RSA、ECC、SM2、Ed25519/448、X25519/448、随机密钥；命名目录、持久化默认路径、PEM/DER/JWK/OpenSSH |
-| 数字签名与验签 | RSA-SHA1/SHA2/SHA3/PSS、ECDSA、SM2-SM3、EdDSA；原始内容、参数与 JSON 响应 |
-| 高级加解密 / 摘要 / KDF | RSA OAEP/PKCS1、SM2 ASN.1/C1C3C2/C1C2C3、SM4-GCM、DES、XChaCha20-Poly1305、BLAKE3/CRC32、PBKDF2/HKDF/scrypt/Argon2id |
-| 证书工具 | X.509 解析、CSR、自签名证书、SAN、显式本地信任根与域名验证 |
-| 密钥容器 | PKCS12/PFX、JKS 生成、解析、提取 |
-| SM2 密文格式转换 | ASN.1、C1C3C2、C1C2C3 互转 |
-| 国际手机号校验 | 默认中国 +86，国旗/区号搜索、多行校验、号码类型与 E.164 |
-| SVGA 动画预览 | 本地文件、画布、动画属性、播放暂停、逐帧、进度条及循环 |
+| JSON | Format, minify, validate, sort keys, escape/unescape, extract paths and inspect a tree; preserves large integers |
+| String joining | Join lines with separators, prefixes, suffixes and quotes; handle empty lines and duplicates |
+| Text processing | Deduplicate, sort, replace, normalize whitespace, change case and escape HTML |
+| Base64 | UTF-8, URL-safe encoding, padding, hexadecimal byte mode and binary file conversion |
+| AES | AES-128/192/256 GCM, CBC and ECB; password-based AES-256-GCM/PBKDF2; Java AES/ECB/PKCS5Padding compatibility, explicit Key/IV, padding, Tag/AAD and literal ciphertext prefixes |
+| URL | URI/component encoding and decoding; parse and build query parameters |
+| Timestamp | Convert seconds, milliseconds and dates; current time and time zone display |
+| UUID and random text | UUID v4 and batch generation using secure randomness |
+| Password generator | Secure passwords, character categories and ambiguous-character filtering |
+| Hash / HMAC | SHA-256, SHA-512, HMAC, hexadecimal and Base64 output |
+| JWT | Inspect headers, payloads and time claims; does not verify signatures |
+| SQL | Dialect-aware formatting, IN-clause generation and string escaping |
+| Regular expressions | Match, capture and replace; cancellable Worker-based processing |
+| Diff | Text and JSON structural comparisons |
+| Data conversion | Convert between JSON, YAML and CSV |
+| cURL | Parse commands, headers, parameters and bodies locally without executing commands or sending requests |
+| Key generation, inspection and conversion | RSA, ECC, SM2, Ed25519/448, X25519/448 and random keys; PEM, DER, JWK and OpenSSH formats; named directories and configurable default storage path |
+| Digital signatures | RSA-SHA1/SHA2/SHA3/PSS, ECDSA, SM2-SM3 and EdDSA; sign and verify raw data, parameters or JSON responses |
+| Advanced cryptography | RSA OAEP/PKCS1, SM2, SM4-GCM, DES, XChaCha20-Poly1305, BLAKE3, CRC32, PBKDF2, HKDF, scrypt and Argon2id |
+| Certificates | X.509 inspection, CSR, self-signed certificates, SAN and explicit local trust-root/hostname validation |
+| Key stores | Create, inspect and extract PKCS12/PFX and JKS containers |
+| SM2 ciphertext formats | Convert ASN.1, C1C3C2 and C1C2C3 |
+| International phone numbers | Search country flags and calling codes, validate numbering plans, display types and E.164 |
+| SVGA preview | Local 1.x ZIP and 2.x zlib animation playback, frame controls, progress and looping |
 
-共有 **31 项工具**，支持复制、显式读取剪贴板、文件导入导出、批量处理、收藏、最近使用、搜索与深浅主题。
+### Workspace
 
-AES 简单模式使用 Web Crypto 认证加密和本项目自有 JSON 封装；高级模式接受原始 Key/IV，可与明确匹配参数的 Java/Node.js/Python AES GCM/CBC 实现互通。新增加 Java AES/ECB/PKCS5Padding 旧系统兼容及一键预设（ECB 无 IV、无完整性认证）。高级 CBC 无完整性认证；GCM 加密时同一 Key 下绝不能复用 IV。加密口令须自行保存，**丢失口令无法恢复明文**。密码生成使用安全随机源，不依赖 Math.random。最近使用仅记录工具名称/ID。所有工具均有独立多标签和历史记录；处理内容的跨进程保存需显式开启加密会话。
+- Independent tabs for every tool, with duplicate, rename, close and restore operations.
+- Complete automatic local saving of parameters, keys, prefixes, inputs, outputs, files, templates and history.
+- Collapsible right-hand history panel with search, filters, restoration to a new tab and manual cleanup by date.
+- Six appearance choices: system, light, soft light, dark, pure black and gray. The selected theme is remembered.
+- Favorites, recent tools, quick launcher, explicit clipboard actions, file import/export and batch processing.
 
-AES 的密文前缀为可选的字面字符串：加密后拼接在已编码的密文前，解密前精确匹配并移除一次；不匹配报错。留空兼容旧版。
+Ordinary workspaces, history and files are not subject to fixed count or storage quotas. Practical capacity depends on memory and disk space. Format-specific validation and protection against malformed archives remain in place.
 
-各工具自由创建标签；运行/关闭历史不会自动淘汰，可逐条恢复、删除，按当前或全部工具、7/30/90 天或指定日期清理。恢复创建新标签，不覆盖当前内容。不设会话、历史和普通文件的固定数量/容量配额，由用户自行管理。实际容量取决于内存、磁盘及运行环境。手机号校验仅依据号码规划，不查询开通状态；SVGA 支持 1.x ZIP 与 2.x Zlib 本地文件（防异常解压与画布尺寸校验，不支持音频）。
+### Compatibility and limitations
 
-第一次使用可直接看 [日常使用指南](docs/USAGE.md)，其中包含 JSON、字符串拼接、Base64 文件处理和快捷键的操作示例。
+Native cryptographic operations run in the installed desktop application using bundled OpenSSL and supporting Rust libraries. The browser preview is intended for interface testing.
 
-## 安装包
+AES's simple mode retains its existing authenticated JSON format. Advanced mode interoperates with Java, Node.js and Python when algorithm parameters match. A ciphertext prefix is appended after encoding and matched literally before decryption. ECB, CBC, RSA-SHA1 and other legacy algorithms are intended for compatibility; prefer authenticated encryption for new designs, and never reuse a GCM nonce with the same key.
 
-仓库现已公开，但目前的安装包仍在 **Draft Release（草稿发布）** 中，仅有发布管理权限的账号可以查看和下载；普通访客需等正式发布 Release 才能下载。打开 [Releases](https://github.com/xzcode/my-tools/releases)，在对应构建的 **草稿 Release → Assets** 中下载：
+OpenSSH conversion currently supports RSA and Ed25519; JKS alias and password support is limited to ASCII. Certificate validation uses explicitly supplied local trust roots without online revocation checks. Phone validation checks numbering plans, not whether a number is active. SVGA audio is not supported.
 
-- `.dmg`：适用于 M1/M2/M3/M4 等 Apple Silicon Mac，选择 `aarch64` 架构。
-- `.exe`：Windows x64 的 NSIS 安装程序。
-- `.deb`：Linux x64 安装包，在 Ubuntu 24.04 构建；其他发行版需核对系统依赖，或在目标环境自行构建。
+See the [cryptography guide](docs/CRYPTO_TOOLS.md) for details.
 
-普通 `master` 推送或手动构建使用 `build-v<版本>-<运行ID>-<重试次数>` 草稿；版本标签构建使用相同的 `v<版本>` 标签草稿。安装包附带 `SHA256SUMS-<平台>.txt`，同一草稿还收集工作台与快捷窗口截图。
+## Download
 
-草稿可能在平台构建过程中已出现，此时附件仍在补齐。是否已经完整生成，以对应 [Actions → Desktop builds](https://github.com/xzcode/my-tools/actions/workflows/desktop.yml) 的实际结果为准；具体本次交付证据见 [交接记录](docs/HANDOFF.md)。工作流不会自动把草稿发布，也不会改变仓库的私有访问范围。
+| Platform | Package |
+| --- | --- |
+| macOS Apple Silicon | `.dmg` (ARM64) |
+| Windows x64 | NSIS `.exe` installer |
+| Linux x64 | `.deb` built on Ubuntu 24.04 |
 
-本项目将安装包和截图存入 Release assets，不依赖 Actions Artifacts 的存储配额；Actions 页面仍用于查看构建状态和日志。
+Visit [Releases](https://github.com/xzcode/toolbox-ex/releases) and check the corresponding [Desktop builds](https://github.com/xzcode/toolbox-ex/actions/workflows/desktop.yml) run. Download the installer and its platform SHA-256 checksum file.
 
-macOS 默认采用 ad-hoc 签名，自用版本未接入 Apple Developer 公证；Windows 默认未配置商业代码签名。签名、公证和可选自动更新的配置见 [发布说明](docs/RELEASING.md)。不需要为了本地运行提供账号或服务端。
+Builds are uploaded to draft releases. Drafts are accessible to accounts with release-management permission; public downloads become available when a maintainer publishes the release. The workflow does not automatically publish drafts.
 
-## 本地开发
+macOS builds use ad-hoc signing by default and are not Apple-notarized. Windows installers are not commercially code-signed by default. Linux compatibility outside the build distribution depends on system libraries. See [building and releasing](docs/RELEASING.md).
 
-要求 Node.js **22.14+**、Rust stable，以及 [Tauri 官方平台构建依赖](https://v2.tauri.app/start/prerequisites/)。macOS 需要 Xcode Command Line Tools；Windows 需要 C++ Build Tools 和 WebView2；Linux 需要 GTK/WebKitGTK 开发包。
+## Local development
+
+Requirements: Node.js 22.14+, stable Rust and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/). Windows builds also require native Perl for vendored OpenSSL.
 
 ```bash
+git clone https://github.com/xzcode/toolbox-ex.git
+cd toolbox-ex
 npm ci
 npm run desktop:dev
 ```
 
-只开发/检查界面时：
-
-```bash
-npm run dev
-```
-
-浏览器预览用于界面调试，剪贴板、文件、托盘、全局快捷键的原生行为应以桌面应用为准。
+For browser-based UI development, run `npm run dev`.
 
 ```bash
 npm run check
+npx playwright install chromium
 npm run test:e2e
 cargo test --manifest-path src-tauri/crypto-core/Cargo.toml --locked
 cargo test --manifest-path src-tauri/Cargo.toml --locked
 npm run desktop:build
 ```
 
-首次运行浏览器测试前执行 `npx playwright install chromium`；也可设置 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 使用已安装的 Chromium。
+Java 21 is used for independent cryptographic interoperability tests. Browser tests do not replace native installer, tray or shortcut verification.
 
-## 项目结构
+## Project structure
 
 ```text
-src/
-  core/          工具目录、纯 TypeScript 转换逻辑
-  components/    编辑器、树视图和通用界面
-  composables/   Worker 调度与界面状态
-  workers/       隔离耗时转换任务
-  platform/      桌面 IPC 与浏览器调试适配
-src-tauri/       Rust 桌面窗口、菜单、文件、剪贴板、权限
-tests/          核心边界测试、浏览器操作验收
-scripts/        版本检查、打包与校验文件生成
-docs/           使用、架构、发布、阶段与交接记录
+src/core/          Tool registry and pure TypeScript transformations
+src/components/    Editors, tool interfaces and workspace panels
+src/composables/   Workspace state and task scheduling
+src/workers/       Background transformations
+src/platform/      Desktop IPC and browser adapters
+src-tauri/         Rust desktop application and native cryptography
+tests/             Core tests and browser acceptance tests
+scripts/           Build, release and checksum tooling
+docs/              Usage, architecture and development documentation
 ```
 
-## 数据处理原则
+## Local data and privacy
 
-- 所有工具参数、输入输出、文件、模板与历史记录自动完整保存在本机，无须选择保存字段。新存档由本地随机密钥自动加密，旧版系统凭据加密存档保持原有保护；不上传网络。历史在右侧独立栏中恢复或删除，重要数据由用户自行清理。
-- 主题、收藏、最近使用、窗口位置等非内容配置保存到本机。主题可选跟随系统、浅色、柔和白色、深色、纯黑、灰色。
-- 不轮询剪贴板；用户点击粘贴时才读取。
-- 文件访问通过用户选择或当前窗口收到的拖放授权；不授予任意目录读写。
-- 默认构建不启用网络更新。可选更新需独立配置 HTTPS 更新源与签名公钥，并由用户触发检查/安装。
-- CPU 密集操作在 Worker 中执行；用户可主动停止 Worker 任务，保留主界面可操作。
+All workspace content is saved automatically on the device. New desktop archives use authenticated encryption with an automatically generated local key; existing credential-store-protected archives retain their original protection. Local encryption is not a defense against software that already controls the device. Users manage and delete their own history and sensitive data.
 
-详细说明见 [日常使用](docs/USAGE.md)、[架构](docs/ARCHITECTURE.md)、[桌面能力](docs/DESKTOP.md)、[构建与发布](docs/RELEASING.md)、[M1–M5 交接](docs/HANDOFF.md)。
+Toolbox EX was previously named My Tools. The existing application identifier, preference and workspace formats, and AES ciphertext identifiers remain unchanged for compatibility. Existing configured key directories are preserved. Data discarded by earlier save policies cannot be reconstructed.
 
-## 开源许可证
+Clipboard access is explicit. File access is scoped to user-selected or dropped files. Tools do not upload content, and optional network updates are disabled in default builds.
 
-本项目采用 [MIT License](LICENSE)，版权归 © 2026 xzcode 所有。允许个人或商业使用、修改和再分发，但须保留原版权及许可证声明。依赖库仍各自遵循其原有许可证。
+## Documentation
 
-### 密码学工具（v0.7.0 开发版）
+The detailed guides are currently available in Chinese: [Usage](docs/USAGE.md), [Architecture](docs/ARCHITECTURE.md), [Desktop integration](docs/DESKTOP.md), [Cryptography](docs/CRYPTO_TOOLS.md), [Releasing](docs/RELEASING.md), [Release notes](docs/RELEASE_NOTES.md) and [Development handoff](docs/HANDOFF.md).
 
-新增工具使用随应用构建的 OpenSSL 原生模块，仅桌面安装版执行实际密码学运算。详见 [密码学工具指南](docs/CRYPTO_TOOLS.md)。
+## License
+
+Released under the [MIT License](LICENSE). Copyright © 2026 xzcode. Dependencies retain their own licenses.

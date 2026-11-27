@@ -1,9 +1,9 @@
 {
-  "name": "my-tools",
-  "version": "0.7.1",
+  "name": "toolbox-ex",
+  "version": "0.7.2",
   "private": true,
   "license": "MIT",
-  "description": "An offline personal developer toolbox for macOS, Windows and Linux.",
+  "description": "Toolbox EX: an offline developer toolbox for macOS, Windows and Linux.",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",

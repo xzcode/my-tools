@@ -22,7 +22,7 @@ if (mode === 'prepare') {
     : `build-v${version}-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`;
   if (process.env.GITHUB_REF_TYPE === 'tag' && tag !== `v${version}`) throw new Error('Release tag must match application version');
   const notes = 'Private draft build. Validation and platform packaging are in progress; see the linked workflow for actual results.';
-  gh(['release', 'create', tag, '--draft', '--target', process.env.GITHUB_SHA, '--title', `My Tools ${version} · building`, '--notes', notes]);
+  gh(['release', 'create', tag, '--draft', '--target', process.env.GITHUB_SHA, '--title', `Toolbox EX ${version} · building`, '--notes', notes]);
   appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
   console.log(`Created private draft ${tag}`);
 } else {
@@ -42,9 +42,9 @@ if (mode === 'prepare') {
     const notes = readFileSync('docs/RELEASE_NOTES.md', 'utf8')
       + `\n## Build evidence\n\nSource: ${process.env.GITHUB_SHA}\n\nUI checks: ${process.env.QUALITY_RESULT}; desktop installers: ${process.env.DESKTOP_RESULT}.\n\nWorkflow: https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\n`;
     writeFileSync('release-build-notes.md', notes);
-    gh(['release', 'edit', tag, '--title', `My Tools ${version} · ${complete ? 'ready to install' : 'incomplete build'}`, '--notes-file', 'release-build-notes.md']);
+    gh(['release', 'edit', tag, '--title', `Toolbox EX ${version} · ${complete ? 'ready to install' : 'incomplete build'}`, '--notes-file', 'release-build-notes.md']);
     // GitHub can replace a draft's temporary URL when its title or notes change.
     const releasesUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases`;
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### My Tools ${version}\n\n[Open private releases and download this build](${releasesUrl})\n\nBuild tag: \`${tag}\`\n\nUI checks: **${process.env.QUALITY_RESULT}** · Desktop packages: **${process.env.DESKTOP_RESULT}**\n`);
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Toolbox EX ${version}\n\n[Open private releases and download this build](${releasesUrl})\n\nBuild tag: \`${tag}\`\n\nUI checks: **${process.env.QUALITY_RESULT}** · Desktop packages: **${process.env.DESKTOP_RESULT}**\n`);
   } else throw new Error('Unknown release-assets operation');
 }

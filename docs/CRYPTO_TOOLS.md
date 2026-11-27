@@ -4,7 +4,7 @@
 
 打开「密码学工具 → 密钥生成」，输入密钥名称、选择算法、规格与编码，然后生成。在结果区域可以查看/复制公私钥，并保存到默认目录下的命名子目录。默认路径通过系统文件夹选择器修改，独立保存为应用配置；不会随 Tab 或历史清理而重置。已有同名目录不覆盖，请选择新名称。私钥在 Unix 系统按 0600 文件权限、0700 密钥目录保存；Windows 文件权限由用户账户及父目录继承。导出私钥可选 PKCS8 或 OpenSSH 口令保护，不强制设置口令。
 
-本地密钥库列出当前默认目录中的受支持密钥文件，可导入对应工作台或打开目录。修改默认路径不移动旧密钥。My Tools 创建、清单完整且无额外文件的密钥组可重命名或删除；已有同名目录不会覆盖。删除需输入准确的组名；不递归删除其他文件。默认目录改变后，必须刷新再执行密钥组管理。
+本地密钥库列出当前默认目录中的受支持密钥文件，可导入对应工作台或打开目录。修改默认路径不移动旧密钥。Toolbox EX 创建、清单完整且无额外文件的密钥组可重命名或删除；已有同名目录不会覆盖。删除需输入准确的组名；不递归删除其他文件。默认目录改变后，必须刷新再执行密钥组管理。
 
 ## 已实现的算法
 
@@ -33,4 +33,4 @@ OpenSSH 当前支持 RSA、Ed25519；不宣称支持所有 SSH 密钥类型。JW
 
 ## Java 21 互通验收（M8.10）
 
-新增 src-tauri/crypto-core/tests/java_interop.rs 与 tests/java/MyToolsInterop.java，只生成临时测试密钥与证书。Java 21 独立读取 My Tools 生成的 JKS/PKCS12（含 JKS 独立条目口令），使用 SHA1withRSA/SHA256withRSA/SHA512withRSA 验签与反向签名，再写出 Java 容器供 My Tools 读取、校验公私钥与证书匹配，覆盖可信证书条目和篡改验签失败。Java AES/ECB/PKCS5Padding 与 OpenSSL 对照一致；前端固定 Java 密文向量独立回归。JKS 非 ASCII 别名与口令仍未支持。CI 强制安装 Java 21 并执行互通测试。测试不读取真实业务密钥。
+新增 src-tauri/crypto-core/tests/java_interop.rs 与 tests/java/MyToolsInterop.java，只生成临时测试密钥与证书。Java 21 独立读取 Toolbox EX 生成的 JKS/PKCS12（含 JKS 独立条目口令），使用 SHA1withRSA/SHA256withRSA/SHA512withRSA 验签与反向签名，再写出 Java 容器供 Toolbox EX 读取、校验公私钥与证书匹配，覆盖可信证书条目和篡改验签失败。Java AES/ECB/PKCS5Padding 与 OpenSSL 对照一致；前端固定 Java 密文向量独立回归。JKS 非 ASCII 别名与口令仍未支持。CI 强制安装 Java 21 并执行互通测试。测试不读取真实业务密钥。

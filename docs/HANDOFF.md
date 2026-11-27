@@ -1,9 +1,15 @@
-# My Tools · M1–M5 与后续增量交接
+# Toolbox EX · M1–M5 与后续增量交接
 
-日期：2026-11-27（Asia/Kuala_Lumpur）。**当前开发版本：0.7.1（完整保存、右侧历史栏、多主题）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-27（Asia/Kuala_Lumpur）。**当前开发版本：0.7.2（Toolbox EX 更名与双语 README）**；首版为 0.1.0。仓库：`xzcode/toolbox-ex`，默认分支 `master`。
 
 
 
+
+## v0.7.2 · Toolbox EX 更名
+
+- 仓库更名为 xzcode/toolbox-ex，英文 README 默认展示，简体中文 README.zh-CN.md 可切换。窗口、托盘、设置页、示例、安装包产品名称与发布草稿标题统一为 Toolbox EX。
+- 保留原应用标识 io.xzcode.mytools、内部 Rust 包/IPC 及存档格式、浏览器存储键和 AES 密文标识；显式配置的密钥目录不变，旧默认密钥目录存在时继续使用。新默认目录为 Toolbox EX/Keys。旧安装包名称保留真实历史证据。
+- v0.7.1 Actions #46003021261 三平台原生测试与安装包全部成功；v0.7.2 需独立确认构建和安装。仓库已更名，本轮开发未能连接东京服务器，直接通过 GitHub 完成提交。
 
 ## v0.7.1 · 完整保存、右侧历史栏、多主题
 
@@ -74,9 +80,9 @@
 
 ### v0.4.0 验证与附件
 
-- 功能与验收源提交：[d719b398](https://github.com/xzcode/my-tools/commit/d719b398a24c267117b9c3ccb034eeffadf4bb18)，随后文档提交不改变已构建源码。
-- [GitHub Actions #45136363419](https://github.com/xzcode/my-tools/actions/runs/45136363419) 结论 **success**，83 项 Vitest 核心/Worker 测试与 14 项真实 Chromium 页面操作测试全部通过，且 TypeScript/前端构建、三平台原生测试和安装包构建上传成功。ECB 的独立测试对照 Node.js AES-128/192/256 ECB Base64 输出及 NIST AES-128 ECB NoPadding 向量，并验证旧模式解密兼容。
-- 私有草稿：[Releases](https://github.com/xzcode/my-tools/releases) → **My Tools 0.4.0 · ready to install**；构建标签 build-v0.4.0-45136363419-1。使用稳定的列表入口，避免 GitHub 草稿临时地址更新导致失效。
+- 功能与验收源提交：[d719b398](https://github.com/xzcode/toolbox-ex/commit/d719b398a24c267117b9c3ccb034eeffadf4bb18)，随后文档提交不改变已构建源码。
+- [GitHub Actions #45136363419](https://github.com/xzcode/toolbox-ex/actions/runs/45136363419) 结论 **success**，83 项 Vitest 核心/Worker 测试与 14 项真实 Chromium 页面操作测试全部通过，且 TypeScript/前端构建、三平台原生测试和安装包构建上传成功。ECB 的独立测试对照 Node.js AES-128/192/256 ECB Base64 输出及 NIST AES-128 ECB NoPadding 向量，并验证旧模式解密兼容。
+- 私有草稿：[Releases](https://github.com/xzcode/toolbox-ex/releases) → **My Tools 0.4.0 · ready to install**；构建标签 build-v0.4.0-45136363419-1。使用稳定的列表入口，避免 GitHub 草稿临时地址更新导致失效。
 
 | 目标平台 | 已生成附件 | 大小（字节） | SHA-256 |
 | --- | --- | ---: | --- |
@@ -100,9 +106,9 @@
 
 ### 验证与安装包
 
-- 安装包源提交：[4c1e409f](https://github.com/xzcode/my-tools/commit/4c1e409f00d19bae2b5d2d5e6499b1d2fc58905f)。本交接文档提交在其后，未修改构建应用代码。
-- [Desktop builds #44716371232](https://github.com/xzcode/my-tools/actions/runs/44716371232)：最终结论 **success**，75 项 Vitest 单元/Worker 测试、13 项真实 Chromium UI 验收及 TypeScript / Vite 生产构建全部通过；Mac/Windows/Linux 的原生测试、优化构建和安装包上传均成功。
-- 私有草稿下载：[仓库 Releases](https://github.com/xzcode/my-tools/releases) → **My Tools 0.3.0 · ready to install**，构建标签为 build-v0.3.0-44716371232-1。GitHub 草稿临时 URL 可能变更，使用稳定 Releases 入口。
+- 安装包源提交：[4c1e409f](https://github.com/xzcode/toolbox-ex/commit/4c1e409f00d19bae2b5d2d5e6499b1d2fc58905f)。本交接文档提交在其后，未修改构建应用代码。
+- [Desktop builds #44716371232](https://github.com/xzcode/toolbox-ex/actions/runs/44716371232)：最终结论 **success**，75 项 Vitest 单元/Worker 测试、13 项真实 Chromium UI 验收及 TypeScript / Vite 生产构建全部通过；Mac/Windows/Linux 的原生测试、优化构建和安装包上传均成功。
+- 私有草稿下载：[仓库 Releases](https://github.com/xzcode/toolbox-ex/releases) → **My Tools 0.3.0 · ready to install**，构建标签为 build-v0.3.0-44716371232-1。GitHub 草稿临时 URL 可能变更，使用稳定 Releases 入口。
   
 | 平台 | 实际上传附件 | 大小（字节） | SHA-256 |
 | --- | --- | ---: | --- |
@@ -125,9 +131,9 @@
 
 ### 测试与安装包
 
-- 功能源码与构建对应提交：[9ddb2e41](https://github.com/xzcode/my-tools/commit/9ddb2e41a134d28bed695bbd60ebdafa963016e5)。
-- [Desktop builds #44702779040](https://github.com/xzcode/my-tools/actions/runs/44702779040)：最终结论 **success**；64 项 Vitest 核心/后台任务测试、12 项真实 Chromium 浏览器操作验收、前端类型检查/生产构建，以及 macOS/Windows/Linux 各自 Rust 原生测试与打包上传成功。
-- 私有草稿下载：[Releases](https://github.com/xzcode/my-tools/releases)，选择 **My Tools 0.2.0 · ready to install**，对应构建标签为 build-v0.2.0-44702779040-1（草稿临时 URL 可能变化，不作为固定文档链接）。
+- 功能源码与构建对应提交：[9ddb2e41](https://github.com/xzcode/toolbox-ex/commit/9ddb2e41a134d28bed695bbd60ebdafa963016e5)。
+- [Desktop builds #44702779040](https://github.com/xzcode/toolbox-ex/actions/runs/44702779040)：最终结论 **success**；64 项 Vitest 核心/后台任务测试、12 项真实 Chromium 浏览器操作验收、前端类型检查/生产构建，以及 macOS/Windows/Linux 各自 Rust 原生测试与打包上传成功。
+- 私有草稿下载：[Releases](https://github.com/xzcode/toolbox-ex/releases)，选择 **My Tools 0.2.0 · ready to install**，对应构建标签为 build-v0.2.0-44702779040-1（草稿临时 URL 可能变化，不作为固定文档链接）。
 
 | 平台 | 已生成附件 | 大小（字节） | SHA-256 |
 | --- | --- | ---: | --- |
@@ -156,19 +162,19 @@
 - 57 个核心行为/后台任务测试通过，包括长整数、中文/二进制 Base64、SHA/HMAC 向量、SQL 引号、CSV、JSON Diff、输出放大、Worker 超时与取消。
 - TypeScript 检查、Vite 生产构建通过。
 - macOS、Windows、Linux 各自执行的 9 项 Rust 原生文件/设置测试，以及生产安装包构建、上传步骤均通过。本地 Linux 另已完成 `cargo check`、`cargo check --features updater`，可选更新功能编译通过。
-- GitHub 运行 [44697286630](https://github.com/xzcode/my-tools/actions/runs/44697286630) 的 57 项单元/后台任务测试、10 项真实 Chromium 操作验收全部通过。界面验收耗时 16.5 秒，覆盖长整数 JSON、中文/二进制 Base64 往返、快捷搜索、敏感输入不持久化、正则超时恢复、Diff、批量部分失败隔离与本地 cURL 解析。
-- 首轮运行 [44696636512](https://github.com/xzcode/my-tools/actions/runs/44696636512) 曾在全部界面测试通过后，因 GitHub Actions artifact storage quota 已满而无法上传截图，导致依赖的安装包作业跳过。已改为私有草稿 Release 保存安装包、截图与校验文件；新运行的三平台安装包均已实际上传。
+- GitHub 运行 [44697286630](https://github.com/xzcode/toolbox-ex/actions/runs/44697286630) 的 57 项单元/后台任务测试、10 项真实 Chromium 操作验收全部通过。界面验收耗时 16.5 秒，覆盖长整数 JSON、中文/二进制 Base64 往返、快捷搜索、敏感输入不持久化、正则超时恢复、Diff、批量部分失败隔离与本地 cURL 解析。
+- 首轮运行 [44696636512](https://github.com/xzcode/toolbox-ex/actions/runs/44696636512) 曾在全部界面测试通过后，因 GitHub Actions artifact storage quota 已满而无法上传截图，导致依赖的安装包作业跳过。已改为私有草稿 Release 保存安装包、截图与校验文件；新运行的三平台安装包均已实际上传。
 - 升级开发测试依赖到 Vitest 5.1.1 后重新通过 57 项测试与生产构建；npm audit 当前报告 0 个已知漏洞。
 
 当前交付环境禁止 Chromium 创建所需进程通信套接字，首次本地 Playwright 尝试在浏览器启动阶段报 `socket(): Operation not permitted`。真实界面验收已在 GitHub runner 执行通过，截图通过草稿 Release 保存。
 
 ## v0.1.0 首版交付（历史记录）
 
-安装包对应源提交：[`15ef5ae814a002bb082bfeb21d3752d92c0919f0`](https://github.com/xzcode/my-tools/commit/15ef5ae814a002bb082bfeb21d3752d92c0919f0)。后续交接文档与发布导航修正不改变这些安装包中的应用代码。
+安装包对应源提交：[`15ef5ae814a002bb082bfeb21d3752d92c0919f0`](https://github.com/xzcode/toolbox-ex/commit/15ef5ae814a002bb082bfeb21d3752d92c0919f0)。后续交接文档与发布导航修正不改变这些安装包中的应用代码。
 
-下载：[仓库 Releases](https://github.com/xzcode/my-tools/releases)，选择 **My Tools 0.1.0 · ready to install**，构建标签为 `build-v0.1.0-44697286630-1`。使用可管理仓库的 GitHub 账号登录后，在 Assets 下载。GitHub 编辑草稿后可能改变其临时 URL，因此这里使用稳定的列表入口与构建标签定位。
+下载：[仓库 Releases](https://github.com/xzcode/toolbox-ex/releases)，选择 **My Tools 0.1.0 · ready to install**，构建标签为 `build-v0.1.0-44697286630-1`。使用可管理仓库的 GitHub 账号登录后，在 Assets 下载。GitHub 编辑草稿后可能改变其临时 URL，因此这里使用稳定的列表入口与构建标签定位。
 
-本次 [完整工作流](https://github.com/xzcode/my-tools/actions/runs/44697286630) 已结束，结论为 **success**；质量检查、三平台打包和发布收尾均成功。
+本次 [完整工作流](https://github.com/xzcode/toolbox-ex/actions/runs/44697286630) 已结束，结论为 **success**；质量检查、三平台打包和发布收尾均成功。
 
 | 平台 | 安装包附件 | 大小（字节） |
 | --- | --- | ---: |

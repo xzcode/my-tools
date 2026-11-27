@@ -1,7 +1,7 @@
 [package]
 name = "my-tools"
-version = "0.7.1"
-description = "Offline developer toolbox"
+version = "0.7.2"
+description = "Toolbox EX - offline developer toolbox"
 authors = ["Jojo"]
 license = "MIT"
 edition = "2021"

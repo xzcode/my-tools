@@ -1,4 +1,4 @@
-# My Tools 桌面层
+# Toolbox EX 桌面层
 
 ## 运行方式
 
@@ -48,7 +48,7 @@ Linux 下系统托盘可见性、全局快捷键支持受桌面环境影响。Wa
 | 剪贴板读取 | 仅在点击读取时进行 |
 | 剪贴板写入 | 文本，无固定容量配额 |
 
-批量导出在所选目录中创建 `my-tools-export-<时间戳>` 子目录，因此不会替换同名的既有文件。文件名会拒绝路径分隔符、目录穿越、重复名称和 Windows 保留设备名。单文件保存使用临时文件写完后替换目标，减少中途失败导致空文件的风险；覆盖选择由原生保存对话框处理。
+批量导出在所选目录中创建 `toolbox-ex-export-<时间戳>` 子目录，因此不会替换同名的既有文件。文件名会拒绝路径分隔符、目录穿越、重复名称和 Windows 保留设备名。单文件保存使用临时文件写完后替换目标，减少中途失败导致空文件的风险；覆盖选择由原生保存对话框处理。
 
 浏览器预览的批量导出生成一个包含 UTF-8 文件名的 ZIP。二进制 Base64 与文本编解码是两个独立入口，解码为文件时直接写出字节，不进行字符替换。
 
@@ -93,7 +93,7 @@ npm run desktop:build -- --target x86_64-pc-windows-msvc --bundles nsis
 npm run desktop:build -- --bundles deb,appimage
 ```
 
-构建产物在 `src-tauri/target/<target>/release/bundle/`，未指定 target 时位于 `src-tauri/target/release/bundle/`。仓库 CI 将安装包、平台 SHA-256 校验文件与界面截图上传到私有草稿 Release assets。登录可管理仓库的 GitHub 账号后，在 [Releases](https://github.com/xzcode/my-tools/releases) 下载，Actions 页面用于查看状态和日志。
+构建产物在 `src-tauri/target/<target>/release/bundle/`，未指定 target 时位于 `src-tauri/target/release/bundle/`。仓库 CI 将安装包、平台 SHA-256 校验文件与界面截图上传到草稿 Release assets。登录可管理仓库的 GitHub 账号后，在 [Releases](https://github.com/xzcode/toolbox-ex/releases) 下载，Actions 页面用于查看状态和日志。
 
 普通 `master` 推送或手动运行的草稿标签为 `build-v<版本>-<运行ID>-<重试次数>`；版本标签构建使用相同的 `v<版本>` 草稿。草稿可能在各平台任务完成前已存在；以对应任务的成功结果确认安装包状态。Linux 编译成功不能替代 macOS 或 Windows 构建结果。完整流程见 [构建与发布](RELEASING.md)，安装后的常见操作见 [日常使用](USAGE.md)。
 

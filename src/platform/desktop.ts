@@ -218,7 +218,7 @@ export async function saveBatchFiles(files: ExportFile[]): Promise<number> {
     names.add(file.name.toLowerCase());
   }
   if (isDesktop()) return invoke<number>('save_batch_files', { files });
-  download(makeZip(files), 'my-tools-results.zip');
+  download(makeZip(files), 'toolbox-ex-results.zip');
   return files.length;
 }
 

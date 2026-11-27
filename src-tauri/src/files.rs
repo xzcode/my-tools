@@ -302,7 +302,7 @@ fn write_batch(parent: &Path, files: &[ExportFile]) -> Result<usize, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_nanos();
-    let destination = parent.join(format!("my-tools-export-{stamp}"));
+    let destination = parent.join(format!("toolbox-ex-export-{stamp}"));
     fs::create_dir(&destination).map_err(|e| format!("创建导出目录失败：{e}"))?;
     let mut created = vec![];
     let result = (|| {

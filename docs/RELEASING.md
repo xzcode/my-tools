@@ -2,7 +2,7 @@
 
 ## 默认安装包
 
-`Desktop builds` 在推送 `master`、版本标签或手动运行时执行。安装包与截图直接上传到当前私有仓库的 **草稿 Release assets**，不使用 Actions Artifacts 作为下载入口：
+`Desktop builds` 在推送 `master`、版本标签或手动运行时执行。安装包与截图直接上传到当前仓库的 **草稿 Release assets**，不使用 Actions Artifacts 作为下载入口：
 
 1. 检查三个版本号一致，运行核心测试、TypeScript 构建、浏览器验收。
 2. 分别在 macOS、Windows、Linux runner 上执行 Rust 格式检查、原生单元测试与 Tauri 打包。
@@ -19,7 +19,7 @@ Linux 安装包使用 Ubuntu 24.04 runner 构建。这里的 `.deb` 格式不代
 | 手动运行 | `build-v<version>-<runid>-<attempt>` |
 | 推送 `v<version>` 标签 | 与触发工作流的版本标签一致；标签必须与应用版本匹配 |
 
-普通构建的标签包含运行 ID 与重试次数，便于区分各次构建。版本标签构建不能覆盖同名的正式 Release；冲突应由维护者确认后处理。工作流不会自动将草稿发布，不会把私有仓库或安装包公开。
+普通构建的标签包含运行 ID 与重试次数，便于区分各次构建。版本标签构建不能覆盖同名的正式 Release；冲突应由维护者确认后处理。工作流不会自动将草稿发布，不会自动公开安装包。
 
 重试前先检查失败阶段。版本标签构建的 `prepare-release` 成功且未进入附件上传时，可使用“重新运行失败的作业”，复用已建立的草稿。“重新运行所有作业”会再次创建同名草稿，因名称冲突而停止；附件上传同样不会覆盖同名文件，部分上传后重试也可能出现冲突。维护者应先核对源提交 SHA、已有草稿与附件，再处理该次未完成构建的冲突；不要删除或覆盖已发布版本。普通 `master` 构建重新运行所有作业会使用新的 attempt 标签。
 
@@ -27,8 +27,8 @@ Linux 安装包使用 Ubuntu 24.04 runner 构建。这里的 `.deb` 格式不代
 
 ## 获取安装包
 
-1. 使用可管理该私有仓库的账号登录 GitHub，打开 [Releases](https://github.com/xzcode/my-tools/releases)。
-2. 找到与 Actions 运行对应的草稿。普通构建可用标签里的运行 ID 对照 [Desktop builds](https://github.com/xzcode/my-tools/actions/workflows/desktop.yml)。
+1. 使用可管理该仓库的账号登录 GitHub，打开 [Releases](https://github.com/xzcode/toolbox-ex/releases)。
+2. 找到与 Actions 运行对应的草稿。普通构建可用标签里的运行 ID 对照 [Desktop builds](https://github.com/xzcode/toolbox-ex/actions/workflows/desktop.yml)。
 3. 在 Assets 下载目标平台安装包与 `SHA256SUMS-<target>.txt`。工作台和快捷窗口截图位于同一处。
 4. 校验文件后安装。常见操作见 [日常使用指南](USAGE.md)。
 

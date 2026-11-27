@@ -1466,7 +1466,7 @@ fn managed_key_directory(root: &Path, name: &str) -> Res<(PathBuf, Vec<String>)>
         return Err("密钥目录超出保存路径".into());
     }
     let manifest = dir.join("metadata.json");
-    let meta = fs::symlink_metadata(&manifest).map_err(|_| "不是 My Tools 创建的密钥组")?;
+    let meta = fs::symlink_metadata(&manifest).map_err(|_| "不是 Toolbox EX 创建的密钥组")?;
     if meta.file_type().is_symlink() || !meta.is_file() {
         return Err("密钥组清单无效".into());
     }
@@ -1689,7 +1689,7 @@ mod tests {
     #[test]
     fn rsa_sha1_sha256_pss_and_formats() {
         let (private_key, public_key) = keys("RSA");
-        let msg = "My Tools 签名互通";
+        let msg = "Toolbox EX 签名互通";
         for alg in [
             "RSA-SHA1",
             "RSA-SHA256",
@@ -1937,7 +1937,7 @@ mod tests {
     #[test]
     fn named_directory_and_certificate() {
         let (sk, pk) = keys("RSA");
-        let opts = json!({"commonName":"example.test","organization":"My Tools"});
+        let opts = json!({"commonName":"example.test","organization":"Toolbox EX"});
         let cert = value(req("certificate", "self-sign", "", &sk, opts.clone()));
         let files: Vec<KeyFile> = serde_json::from_value(cert["files"].clone()).unwrap();
         let parsed = value(req("certificate", "inspect", &files[0].data, "", json!({})));

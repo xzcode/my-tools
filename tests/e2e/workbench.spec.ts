@@ -12,7 +12,7 @@ const output = (page: Page) => page.getByRole('textbox', { name: '处理结果',
 
 test('JSON keeps exact integers and gives a recoverable validation error', async ({ page }, info) => {
   await tool(page, 'json');
-  await expect(output(page)).toHaveValue(/My Tools/);
+  await expect(output(page)).toHaveValue(/Toolbox EX/);
   await page.screenshot({ path: info.outputPath('workbench.png'), fullPage: true });
   await page.getByRole('textbox', { name: 'JSON 输入', exact: true }).fill('{"id":900719925474099312345,"name":"Jojo"}');
   await process(page);
@@ -150,7 +150,7 @@ test('batch conversion isolates a bad file and exports only successful output', 
   await expect(page.locator('.batch-heading')).toContainText('1 成功 · 1 失败');
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出成功结果', exact: true }).click();
-  expect((await download).suggestedFilename()).toBe('my-tools-results.zip');
+  expect((await download).suggestedFilename()).toBe('toolbox-ex-results.zip');
 });
 
 test('cURL parsing causes no outgoing requests', async ({ page }) => {

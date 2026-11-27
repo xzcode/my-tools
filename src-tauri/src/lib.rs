@@ -125,7 +125,7 @@ fn tray_menu(app: &AppHandle, recent: &[String]) -> tauri::Result<Menu<tauri::Wr
     menu.append(&MenuItem::with_id(
         app,
         "open",
-        "打开 My Tools",
+        "打开 Toolbox EX",
         true,
         None::<&str>,
     )?)?;
@@ -152,7 +152,7 @@ fn tray_menu(app: &AppHandle, recent: &[String]) -> tauri::Result<Menu<tauri::Wr
     menu.append(&MenuItem::with_id(
         app,
         "quit",
-        "退出 My Tools",
+        "退出 Toolbox EX",
         true,
         None::<&str>,
     )?)?;
@@ -421,7 +421,7 @@ pub fn run() {
                     },
                 )?)
                 .icon_as_template(cfg!(target_os = "macos"))
-                .tooltip("My Tools · 离线开发工具箱")
+                .tooltip("Toolbox EX · 离线开发工具箱")
                 .menu(&tray_menu(handle, &preferences.recent)?)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -515,7 +515,7 @@ pub fn run() {
             updater::install_update,
         ])
         .build(tauri::generate_context!())
-        .expect("My Tools desktop failed to start");
+        .expect("Toolbox EX desktop failed to start");
 
     app.run(|app, event| {
         if let tauri::RunEvent::ExitRequested { api, .. } = &event {

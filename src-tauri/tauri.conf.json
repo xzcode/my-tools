@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "My Tools",
-  "version": "0.7.1",
+  "productName": "Toolbox EX",
+  "version": "0.7.2",
   "identifier": "io.xzcode.mytools",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "My Tools",
+        "title": "Toolbox EX",
         "create": false,
         "url": "index.html",
         "width": 1280,
@@ -27,7 +27,7 @@
       },
       {
         "label": "launcher",
-        "title": "My Tools · 快捷启动",
+        "title": "Toolbox EX · 快捷启动",
         "create": false,
         "url": "index.html?window=launcher",
         "width": 680,
@@ -52,7 +52,7 @@
     "active": true,
     "targets": "all",
     "category": "DeveloperTool",
-    "shortDescription": "离线开发者工具箱",
+    "shortDescription": "Toolbox EX · 离线开发者工具箱",
     "longDescription": "JSON、文本、编码转换与开发辅助工具，全部在本机处理。",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "createUpdaterArtifacts": false,

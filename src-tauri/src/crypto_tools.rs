@@ -25,7 +25,13 @@ fn directory(app: &AppHandle) -> Result<PathBuf, String> {
         .document_dir()
         .or_else(|_| app.path().app_data_dir())
         .map_err(|e| e.to_string())?;
-    Ok(base.join("My Tools").join("Keys"))
+    // Keep the previous default directory if it exists, so a rename does
+    // not hide existing keys. Explicitly configured paths are handled above.
+    let legacy = base.join("My Tools").join("Keys");
+    if legacy.try_exists().map_err(|e| e.to_string())? {
+        return Ok(legacy);
+    }
+    Ok(base.join("Toolbox EX").join("Keys"))
 }
 fn save_directory(app: &AppHandle, dir: PathBuf) -> Result<(), String> {
     my_tools_crypto::store_key_directory(&settings_path(app)?, dir)
