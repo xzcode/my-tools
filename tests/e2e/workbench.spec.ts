@@ -103,7 +103,7 @@ test('theme and favorites persist while payload and HMAC key never do', async ({
   await expect(page.getByLabel('HMAC 密钥', { exact: true })).toHaveValue('');
 });
 
-test('catastrophic regex times out without freezing the interface, then recovers', async ({ page }) => {
+test('catastrophic regex can be cancelled without freezing the interface, then recovers', async ({ page }) => {
   await tool(page, 'regex');
   await page.getByLabel('表达式', { exact: true }).fill('(a+)+$');
   await page.getByRole('textbox', { name: '输入内容', exact: true }).fill(`${'a'.repeat(50)}!`);
@@ -111,7 +111,8 @@ test('catastrophic regex times out without freezing the interface, then recovers
   await page.keyboard.press('Control+k');
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('alert')).toContainText('已中断', { timeout: 7000 });
+  await page.getByRole('button', { name: '停止处理', exact: true }).click();
+  await expect(page.getByRole('button', { name: '停止处理', exact: true })).toHaveCount(0);
   await page.getByLabel('表达式', { exact: true }).fill('a+');
   await process(page);
   await expect(page.getByRole('alert')).toHaveCount(0);

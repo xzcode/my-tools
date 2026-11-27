@@ -18,7 +18,6 @@ use std::{
 };
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
-const MAX_BYTES: usize = 32 * 1024 * 1024;
 const CONFIG: &[u8] = b"MT-AES-CONFIG\x01";
 const FULL: &[u8] = b"MT-AES-WORKSPACE\x01";
 const SERVICE: &str = "io.xzcode.mytools";
@@ -43,7 +42,6 @@ fn credential() -> Result<Entry, String> {
 
 fn read_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
     match fs::metadata(path) {
-        Ok(m) if m.len() > (MAX_BYTES + 128) as u64 => Err("AES 工作台存档超过大小限制。".into()),
         Ok(_) => fs::read(path)
             .map(Some)
             .map_err(|_| "无法读取 AES 工作台存档。".into()),
@@ -192,8 +190,6 @@ fn metadata_safe(data: &Value) -> bool {
             })
     })
 }
-const TOOL_TAB_LIMIT: usize = 100;
-
 fn metadata_safe_v2(data: &Value) -> bool {
     let Ok(schema) = serde_json::from_str::<Value>(include_str!("workspace_options.json")) else {
         return false;
@@ -296,48 +292,32 @@ fn metadata_safe_v2(data: &Value) -> bool {
     }) && data["activeIds"]
         .as_object()
         .is_some_and(|o| o.iter().all(|(k, v)| schema.get(k).is_some() && id(v)))
-        && data["tabs"].as_array().is_some_and(|a| {
-            let mut counts = std::collections::HashMap::<&str, usize>::new();
+        && data["tabs"]
+            .as_array()
+            .is_some_and(|a| a.iter().all(|v| tab(v, &schema)))
+        && data["history"].as_array().is_some_and(|a| {
             a.iter().all(|v| {
-                if !tab(v, &schema) {
-                    return false;
-                }
-                let Some(tool) = v["toolId"].as_str() else {
-                    return false;
-                };
-                let count = counts.entry(tool).or_default();
-                *count += 1;
-                *count <= TOOL_TAB_LIMIT
+                v.as_object().is_some_and(|o| {
+                    o.keys()
+                        .all(|k| ["id", "at", "type", "tab"].contains(&k.as_str()))
+                }) && id(&v["id"])
+                    && v["at"].as_u64().is_some()
+                    && matches!(v["type"].as_str(), Some("closed" | "run"))
+                    && tab(&v["tab"], &schema)
             })
         })
-        && data["history"].as_array().is_some_and(|a| {
-            a.len() <= 200
-                && a.iter().all(|v| {
-                    v.as_object().is_some_and(|o| {
-                        o.keys()
-                            .all(|k| ["id", "at", "type", "tab"].contains(&k.as_str()))
-                    }) && id(&v["id"])
-                        && v["at"].as_u64().is_some()
-                        && matches!(v["type"].as_str(), Some("closed" | "run"))
-                        && tab(&v["tab"], &schema)
-                })
-        })
         && data["templates"].as_array().is_some_and(|a| {
-            a.len() <= 30
-                && a.iter().all(|t| {
-                    t.as_object().is_some_and(|o| {
-                        o.keys()
-                            .all(|k| ["id", "name", "options"].contains(&k.as_str()))
-                    }) && id(&t["id"])
-                        && label(&t["name"])
-                        && opts(&t["options"], &schema["aes"]["options"])
-                })
+            a.iter().all(|t| {
+                t.as_object().is_some_and(|o| {
+                    o.keys()
+                        .all(|k| ["id", "name", "options"].contains(&k.as_str()))
+                }) && id(&t["id"])
+                    && label(&t["name"])
+                    && opts(&t["options"], &schema["aes"]["options"])
+            })
         })
 }
 fn validate(data: &str) -> Result<bool, String> {
-    if data.len() > MAX_BYTES {
-        return Err("工作台自动存档超过 32 MiB；请减少保存内容。".into());
-    }
     let value: Value = serde_json::from_str(data).map_err(|_| "AES 工作台存档 JSON 无效。")?;
     if value["version"].as_u64() == Some(2) {
         return match value["mode"].as_str() {
@@ -587,11 +567,11 @@ mod tests {
         assert!(validate(&v.to_string()).is_err());
     }
     #[test]
-    fn supports_one_hundred_tabs_per_tool_without_shared_quota() {
+    fn supports_many_tabs_without_shared_or_per_tool_quota() {
         let mut v = serde_json::json!({"version":2,"mode":"config","fields":{"key":true,"iv":true,"aad":true,"prefix":true,"input":true,"output":true},"activeIds":{},"tabs":[],"history":[],"templates":[]});
         let tabs = v["tabs"].as_array_mut().unwrap();
         for (tool, action) in [("json", "format"), ("aes", "encrypt")] {
-            for n in 0..100 {
+            for n in 0..250 {
                 tabs.push(serde_json::json!({"id":format!("{tool}-{n}"),"toolId":tool,"name":format!("{tool} {n}"),"action":action,"input":"","secondaryInput":"","options":{},"result":null,"error":"","stale":false,"elapsed":0,"outputView":"text","fileName":"","binarySourceName":"","batch":[],"batchVisible":false}));
             }
         }
@@ -599,6 +579,6 @@ mod tests {
         let mut extra = v["tabs"][0].clone();
         extra["id"] = serde_json::json!("json-extra");
         v["tabs"].as_array_mut().unwrap().push(extra);
-        assert!(validate(&v.to_string()).is_err());
+        assert_eq!(validate(&v.to_string()), Ok(false));
     }
 }

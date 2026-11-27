@@ -54,7 +54,6 @@ export function compareText(request: ToolRequest): ToolResult {
     left = left.split(/\r?\n/).map(line => line.trim()).join('\n');
     right = right.split(/\r?\n/).map(line => line.trim()).join('\n');
   }
-  if (left.length + right.length > 512 * 1024) throw new Error('文本对比合计限 512 KiB 字符，请拆分较大的文本。');
   const changes = optionText(request.options, 'mode') === 'words'
     ? diffWordsWithSpace(left, right, { timeout: 1500, maxEditLength: 10000 })
     : diffLines(left, right, { timeout: 1500, maxEditLength: 10000 });

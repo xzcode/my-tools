@@ -38,7 +38,6 @@ async function processSimpleAes(request: ToolRequest): Promise<ToolResult> {
   if (passphrase.length < 8 || !passphrase.trim()) {
     throw new Error('请输入至少 8 个字符的加密口令；建议使用更长的随机口令。');
   }
-  if (passphrase.length > 1024) throw new Error('加密口令不能超过 1024 个字符。');
   const crypto = safeCrypto();
 
   if (request.action === 'encrypt') {
@@ -105,7 +104,6 @@ async function processSimpleAes(request: ToolRequest): Promise<ToolResult> {
 
 export async function processAes(request: ToolRequest): Promise<ToolResult> {
   const prefix = optionText(request.options, 'prefix');
-  if (prefix.length > 4096) throw new Error('密文前缀最多 4096 个字符。');
   let source = request;
   if (request.action === 'decrypt' && prefix) {
     if (!request.input.startsWith(prefix)) throw new Error('密文前缀不匹配，请检查当前 Tab 的前缀配置。');

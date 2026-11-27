@@ -40,8 +40,11 @@ describe('AES ciphertext prefix', () => {
       expect((await aes('decrypt', encrypted.output, { ...opts, prefix: 'v1:' })).output).toBe('data 中文');
     }
   });
-  it('rejects oversized prefixes', async () => {
-    await expect(aes('encrypt', 'abc', { ...ecb, prefix: 'x'.repeat(4097) })).rejects.toThrow('4096');
+  it('supports long literal prefixes', async () => {
+    const prefix = 'x'.repeat(4097);
+    const encrypted = await aes('encrypt', 'abc', { ...ecb, prefix });
+    expect(encrypted.output.startsWith(prefix)).toBe(true);
+    expect((await aes('decrypt', encrypted.output, { ...ecb, prefix })).output).toBe('abc');
   });
 });
 describe('AES workspace storage policy', () => {

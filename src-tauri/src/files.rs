@@ -10,10 +10,6 @@ use std::{
 use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
-pub const MAX_INPUT_BYTES: usize = 5 * 1024 * 1024;
-pub const MAX_BATCH_BYTES: usize = 20 * 1024 * 1024;
-pub const MAX_FILES: usize = 20;
-
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportedFile {
@@ -34,25 +30,17 @@ pub struct BinaryFile {
     bytes: Vec<u8>,
 }
 
-fn read_bounded_file(path: &Path) -> Result<Vec<u8>, String> {
+fn read_regular_file(path: &Path) -> Result<Vec<u8>, String> {
     let info = fs::symlink_metadata(path).map_err(|e| format!("读取文件信息失败：{e}"))?;
     if !info.is_file() || info.file_type().is_symlink() {
         return Err("只支持普通文件，不支持目录或符号链接".into());
     }
-    if info.len() > MAX_INPUT_BYTES as u64 {
-        return Err("单个文件不能超过 5 MiB".into());
-    }
-    let file = fs::File::open(path).map_err(|e| format!("打开文件失败：{e}"))?;
+    let mut file = fs::File::open(path).map_err(|e| format!("打开文件失败：{e}"))?;
     if !file.metadata().map_err(|e| e.to_string())?.is_file() {
         return Err("只支持普通文件".into());
     }
     let mut data = Vec::new();
-    file.take((MAX_INPUT_BYTES + 1) as u64)
-        .read_to_end(&mut data)
-        .map_err(|e| e.to_string())?;
-    if data.len() > MAX_INPUT_BYTES {
-        return Err("单个文件不能超过 5 MiB".into());
-    }
+    file.read_to_end(&mut data).map_err(|e| e.to_string())?;
     Ok(data)
 }
 
@@ -78,17 +66,9 @@ pub fn safe_name(name: &str) -> bool {
 }
 
 fn read_files(paths: Vec<PathBuf>) -> Result<Vec<ImportedFile>, String> {
-    if paths.len() > MAX_FILES {
-        return Err("一次最多导入 20 个文件".into());
-    }
-    let mut total = 0usize;
     let mut result = Vec::with_capacity(paths.len());
     for path in paths {
-        let data = read_bounded_file(&path)?;
-        total += data.len();
-        if data.len() > MAX_INPUT_BYTES || total > MAX_BATCH_BYTES {
-            return Err("单文件上限 5 MiB，一批文件总量上限 20 MiB".into());
-        }
+        let data = read_regular_file(&path)?;
         let name = path
             .file_name()
             .ok_or("无效的文件名")?
@@ -111,9 +91,9 @@ pub async fn open_binary_file(
     tauri::async_runtime::spawn_blocking(move || {
         let svga = kind.as_deref() == Some("svga");
         let mut dialog = app.dialog().file().set_parent(&window).set_title(if svga {
-            "选择本地 SVGA 动画（最多 5 MiB）"
+            "选择本地 SVGA 动画"
         } else {
-            "选择需要 Base64 编码的文件（最多 5 MiB）"
+            "选择需要 Base64 编码的文件"
         });
         if svga {
             dialog = dialog.add_filter("SVGA 动画", &["svga"]);
@@ -129,7 +109,7 @@ pub async fn open_binary_file(
         {
             return Err("请选择 .svga 文件".into());
         }
-        let bytes = read_bounded_file(&path)?;
+        let bytes = read_regular_file(&path)?;
         let name = path
             .file_name()
             .ok_or("无效的文件名")?
@@ -149,9 +129,6 @@ pub async fn save_binary_file(
     name: String,
 ) -> Result<bool, String> {
     trusted(&window)?;
-    if bytes.len() > MAX_INPUT_BYTES {
-        return Err("二进制文件不能超过 5 MiB".into());
-    }
     if !safe_name(&name) {
         return Err("导出文件名包含不支持的字符".into());
     }
@@ -220,8 +197,8 @@ pub async fn read_dropped_files(
         .map_err(|_| "文件拖放状态暂不可用")?
         .remove(window.label())
         .ok_or("请先将文件拖入当前窗口")?;
-    if when.elapsed() > Duration::from_secs(30) || paths.len() > MAX_FILES || paths.is_empty() {
-        return Err("拖放操作已过期或文件数量超限，请重新拖入文件".into());
+    if when.elapsed() > Duration::from_secs(30) || paths.is_empty() {
+        return Err("拖放操作已过期或未选择文件，请重新拖入文件".into());
     }
     let requested: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
     if requested.iter().any(|p| !allowed.contains(p)) {
@@ -259,7 +236,7 @@ pub async fn read_dropped_binary_file(
         return Err("请选择 .svga 文件".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = read_bounded_file(&requested)?;
+        let bytes = read_regular_file(&requested)?;
         let name = requested
             .file_name()
             .ok_or("无效的文件名")?
@@ -279,9 +256,6 @@ pub async fn save_text_file(
     name: String,
 ) -> Result<bool, String> {
     trusted(&window)?;
-    if content.len() > MAX_BATCH_BYTES {
-        return Err("导出内容不能超过 20 MiB".into());
-    }
     if !safe_name(&name) {
         return Err("导出文件名包含不支持的字符".into());
     }
@@ -310,20 +284,13 @@ pub async fn save_text_file(
 }
 
 fn validate_export(files: &[ExportFile]) -> Result<(), String> {
-    if files.is_empty() || files.len() > MAX_FILES {
-        return Err("一次只能导出 1–20 个文件".into());
+    if files.is_empty() {
+        return Err("没有需要导出的文件。".into());
     }
     let mut names = HashSet::new();
-    let mut bytes = 0usize;
     for file in files {
         if !safe_name(&file.name) || !names.insert(file.name.to_lowercase()) {
             return Err("批量导出文件名无效或重复，请使用不同的文件名".into());
-        }
-        bytes = bytes
-            .checked_add(file.content.len())
-            .ok_or("文件总量超限")?;
-        if bytes > MAX_BATCH_BYTES {
-            return Err("批量导出总量不能超过 20 MiB".into());
         }
     }
     Ok(())
@@ -422,13 +389,16 @@ mod tests {
     }
 
     #[test]
-    fn oversized_files_and_directories_are_rejected() {
+    fn large_files_are_accepted_but_directories_are_rejected() {
         let dir = tempfile::tempdir().unwrap();
         assert!(read_files(vec![dir.path().to_path_buf()]).is_err());
         let path = dir.path().join("large.txt");
         let file = fs::File::create(&path).unwrap();
-        file.set_len(MAX_INPUT_BYTES as u64 + 1).unwrap();
-        assert!(read_files(vec![path]).is_err());
+        file.set_len(6 * 1024 * 1024).unwrap();
+        assert_eq!(
+            read_files(vec![path]).unwrap()[0].content.len(),
+            6 * 1024 * 1024
+        );
     }
 
     #[test]

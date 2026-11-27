@@ -63,22 +63,26 @@ describe('worker isolation and recovery', () => {
     expect((await next).output).toBe('fresh');
   });
 
-  it('interrupts a pathological regular expression after two seconds', async () => {
+  it('lets the user cancel a long-running regex without forcing a timeout', async () => {
     const runner = useToolRunner();
     const pending = runner.run({ ...request, toolId: 'regex' });
-    const rejected = expect(pending).rejects.toThrow('2 秒');
-    await vi.advanceTimersByTimeAsync(2000);
+    const rejected = expect(pending).rejects.toThrow('取消');
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(runner.running.value).toBe(true);
+    runner.cancel();
     await rejected;
     expect(WorkerDouble.instances[0]!.terminated).toBe(true);
     expect(runner.running.value).toBe(false);
   });
 
-  it('bounds non-regex computation at ten seconds', async () => {
+  it('allows normal computations to continue beyond the old timeout', async () => {
     const runner = useToolRunner();
     const pending = runner.run(request);
-    const rejected = expect(pending).rejects.toThrow('10 秒');
-    await vi.advanceTimersByTimeAsync(10_000);
-    await rejected;
+    const worker = WorkerDouble.instances[0]!;
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(runner.running.value).toBe(true);
+    worker.respond({ id: worker.message.id, result: { output: 'done' } });
+    expect((await pending).output).toBe('done');
     expect(runner.running.value).toBe(false);
   });
 

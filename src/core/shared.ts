@@ -1,10 +1,9 @@
 import { isLosslessNumber, parse, stringify } from 'lossless-json';
 import type { OptionValue } from './types';
 
-export const MAX_INPUT_BYTES = 8 * 1024 * 1024;
-export const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 export function assertOutputLength(length: number): void {
-  if (length > MAX_OUTPUT_BYTES) throw new Error('预计输出超过 16 MiB，请减少输入或调整选项。');
+  // Allocation and string representation are determined by the runtime.
+  if (!Number.isSafeInteger(length) || length < 0) throw new Error('输出长度无法表示。');
 }
 export const encoder = new TextEncoder();
 export const optionText = (options: Record<string, OptionValue>, key: string) => String(options[key] ?? '');

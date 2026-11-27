@@ -23,17 +23,18 @@ describe('catalog and input guards', () => {
     await expect(executeTool({ toolId: 'not-found', action: 'run', input: '', options: {} })).rejects.toThrow('未找到');
     await expect(run('json', '{}', 'execute')).rejects.toThrow('不支持');
   });
-  it('rejects oversized UTF-8 input and malformed options', async () => {
-    await expect(run('text', '中'.repeat(3 * 1024 * 1024))).rejects.toThrow('8 MiB');
+  it('accepts large UTF-8 input while rejecting malformed options', async () => {
+    const large = '中'.repeat(3 * 1024 * 1024);
+    expect((await run('text', large)).output).toBe(large);
     await expect(run('uuid', '', 'uuid', { count: -1 })).rejects.toThrow('范围');
     await expect(run('base64', 'ok', 'encode', { urlSafe: 'true' })).rejects.toThrow('布尔');
     await expect(run('url', 'hello', 'encode', { mode: 'wrong' })).rejects.toThrow('无效');
   });
-  it('rejects output amplification before allocating huge strings or CSV matrices', async () => {
+  it('supports large text output but protects CSV structural expansion', async () => {
     const long = 'x'.repeat(20000);
-    await expect(run('string-join', 'a\n'.repeat(1000), 'join', { prefix: long })).rejects.toThrow('16 MiB');
-    await expect(run('text', 'a'.repeat(1000), 'replace', { find: 'a', replace: long })).rejects.toThrow('16 MiB');
-    await expect(run('regex', 'a'.repeat(1000), 'replace', { pattern: 'a', flags: 'g', replacement: long })).rejects.toThrow('16 MiB');
+    expect((await run('string-join', 'a\n'.repeat(1000), 'join', { prefix: long })).output.length).toBeGreaterThan(16 * 1024 * 1024);
+    expect((await run('text', 'a'.repeat(1000), 'replace', { find: 'a', replace: long })).output.length).toBe(20_000_000);
+    expect((await run('regex', 'a'.repeat(1000), 'replace', { pattern: 'a', flags: 'g', replacement: long })).output.length).toBe(20_000_000);
     const sparse = JSON.stringify(Array.from({ length: 1500 }, (_, index) => ({ [`key${index}`]: index })));
     await expect(run('convert', sparse, 'convert', { from: 'json', to: 'csv' })).rejects.toThrow('单元格');
   });
@@ -203,10 +204,10 @@ describe('developer tools', () => {
     const result = await run('regex', input, 'replace', { pattern, flags: 'g', replacement });
     expect(result.output).toBe(input.replace(new RegExp(pattern, 'g'), replacement));
   });
-  it('regex rejects invalid patterns, flags and overly large input', async () => {
+  it('regex rejects invalid patterns and flags but accepts large input', async () => {
     await expect(run('regex', 'test', 'match', { pattern: '[' })).rejects.toThrow('无效');
     await expect(run('regex', 'test', 'match', { flags: 'gg' })).rejects.toThrow('不重复');
-    await expect(run('regex', 'x'.repeat(262145))).rejects.toThrow('256 KiB');
+    expect(JSON.parse((await run('regex', 'x'.repeat(262145), 'match', {pattern:'x+',flags:'g'})).output)).toHaveLength(1);
   });
 });
 

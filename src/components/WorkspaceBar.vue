@@ -3,7 +3,6 @@ import { computed, nextTick, ref, watch } from 'vue';
 import type { useWorkspace } from '../composables/useWorkspace';
 import { getTool } from '../core/catalog';
 import type { SaveMode, SecretField } from '../core/workspace';
-import { OPEN_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT } from '../core/workspace';
 import { isDesktop } from '../platform/desktop';
 
 const props = defineProps<{ workspace: ReturnType<typeof useWorkspace>; exitBlocked?: boolean }>();
@@ -48,7 +47,7 @@ const cleanupCount = computed(() => state.value.history.filter(h => (scope.value
 function restore(id: string) {
   const target = props.workspace.restoreHistory(id);
   if (target) { emit('restore-tool', target); historyOpen.value = false; notice.value = '已在新标签恢复记录。'; }
-  else notice.value = '已达到标签数量上限，请先关闭其他标签。';
+  else notice.value = '该历史记录已不存在或无法恢复。';
 }
 function quickReopen() {
   const target = props.workspace.reopen();
@@ -79,7 +78,7 @@ const statusLabel = computed(() => {
   return saveStatus.value === 'saved' ? '已保存' : '自动保存';
 });
 watch(() => props.exitBlocked, value => { if (value) settings.value = true; }, { immediate: true });
-function create() { if (!props.workspace.create()) notice.value = '当前工具最多打开 ' + OPEN_LIMIT + ' 个标签。'; }
+function create() { if (!props.workspace.create()) notice.value = '无法创建标签，请重试。'; }
 async function openMenu(id: string) {
   menuId.value = id;
   renameDraft.value = state.value.tabs.find(t => t.id === id)?.name ?? '';
@@ -90,7 +89,7 @@ function rename() {
   else notice.value = '请输入非空的标签名。';
 }
 function copy() {
-  if (!props.workspace.duplicate(menuId.value)) notice.value = '已达到标签数量上限。';
+  if (!props.workspace.duplicate(menuId.value)) notice.value = '无法复制该标签。';
   menuId.value = '';
 }
 function closeMore(rightOnly: boolean) {
@@ -129,7 +128,7 @@ function saveTemplate(update: boolean) {
   if (props.workspace.saveTemplate(templateName.value, update ? currentTemplate.value?.id : undefined)) {
     notice.value = '已保存非敏感参数模板。';
     if (!update) templateId.value = state.value.templates.at(-1)?.id ?? '';
-  } else notice.value = '请填写模板名称；最多 ' + TEMPLATE_LIMIT + ' 个自定义模板。';
+  } else notice.value = '请填写模板名称。';
 }
 function deleteTemplate() {
   if (!currentTemplate.value) return;
@@ -156,10 +155,10 @@ function deleteTemplate() {
             @click.stop="workspace.close(tab.id)">×</button>
         </div>
       </div>
-      <select v-if="tabs.length > 8" class="tab-jump" :value="active.id" aria-label="快速切换标签" :title="'当前 ' + tabs.length + ' / ' + OPEN_LIMIT + ' 个标签'" @change="workspace.select(($event.target as HTMLSelectElement).value)">
+      <select v-if="tabs.length > 8" class="tab-jump" :value="active.id" aria-label="快速切换标签" :title="'当前 ' + tabs.length + ' 个标签'" @change="workspace.select(($event.target as HTMLSelectElement).value)">
         <option v-for="tab in tabs" :key="tab.id" :value="tab.id">{{ tab.name }}</option>
       </select>
-      <button type="button" class="icon-button aes-add-tab" :title="tabs.length + ' / ' + OPEN_LIMIT + ' 个标签 · Ctrl/Cmd+T 新建'" :aria-label="toolId === 'aes' ? '新建 AES 标签' : '新建标签'" :disabled="!workspace.canCreate()" @click="create">＋</button>
+      <button type="button" class="icon-button aes-add-tab" :title="tabs.length + ' 个标签 · Ctrl/Cmd+T 新建'" :aria-label="toolId === 'aes' ? '新建 AES 标签' : '新建标签'" :disabled="!workspace.canCreate()" @click="create">＋</button>
       <button type="button" class="small-action" title="恢复最近关闭 (Ctrl/Cmd+Shift+T)" :disabled="!closed.length || !workspace.canCreate()" @click="quickReopen">恢复关闭<span v-if="closed.length"> ({{ closed.length }})</span></button>
       <button type="button" class="small-action" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">历史记录</button>
       <button type="button" class="icon-button" title="标签管理" aria-label="标签管理" @click="openMenu(active.id)">···</button>
@@ -174,7 +173,7 @@ function deleteTemplate() {
       <button class="icon-button" type="button" aria-label="关闭标签管理" @click="menuId = ''">×</button>
     </div>
     <div v-if="historyOpen" class="history-panel" aria-label="历史记录面板">
-      <div class="history-heading"><strong>历史记录</strong><span>最多 {{ HISTORY_LIMIT }} 条 · {{ historyRows.length }} 条符合筛选</span></div>
+      <div class="history-heading"><strong>历史记录</strong><span>共 {{ state.history.length }} 条 · {{ historyRows.length }} 条符合筛选</span></div>
       <div class="history-filters">
         <select v-model="scope" aria-label="历史范围" @change="confirmCleanup = false"><option value="current">当前工具</option><option value="all">全部工具</option></select>
         <select v-model="historyType" aria-label="历史类型"><option value="all">全部记录</option><option value="closed">关闭的标签</option><option value="run">运行记录</option></select>
@@ -224,7 +223,7 @@ function deleteTemplate() {
         <label v-for="[field, label] in fieldLabels" :key="field"><input v-model="state.fields[field]" type="checkbox" :disabled="changing" /> {{ label }}</label>
       </div>
       <p v-if="saveError" class="error-text" role="status">{{ saveError }}<span v-if="blocked"> · 为保护原文件，自动覆盖已停止。可解锁凭据库后重启，或主动清除存档。</span></p>
-      <p>每次修改约 500ms 后自动保存。正常退出前尝试刷新；闪退、断电仍可能丢失最后未落盘的修改。会话总大小上限 32 MiB。</p>
+      <p>每次修改约 500ms 后自动保存。正常退出前尝试刷新；闪退、断电仍可能丢失最后未落盘的修改。不设固定存档容量或历史条数配额，历史由你自行清理。</p>
       <div class="aes-session-actions">
         <button type="button" class="small-action" :disabled="changing" @click="confirmErase = true">清除全部工作台</button>
         <template v-if="confirmErase">

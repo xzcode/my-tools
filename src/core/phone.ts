@@ -47,7 +47,6 @@ export function processPhone(request: ToolRequest): ToolResult {
   if (!phoneCountries.some(c => c.code === country)) throw new Error('请选择有效的国家或地区。');
   const lines = request.input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   if (!lines.length) throw new Error('请输入手机号或电话号码，每行一个号码。');
-  if (lines.length > 1000 || lines.some(s => s.length > 200)) throw new Error('最多校验 1000 个号码，每个号码最多 200 字符。');
   const values = lines.map(line => inspectPhone(line, country));
   const valid = values.filter(v => v.valid).length;
   return {

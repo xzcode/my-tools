@@ -13,7 +13,6 @@ const CBC_BLOCK_BYTES = 16;
  * equals AES-ECB of one block; CBC decryption can be unchained by XORing
  * the previous ciphertext block. No AES rounds are implemented here.
  */
-const ECB_LIMIT = 256 * 1024;
 const ECB_WARNING = 'ECB 仅用于兼容已有 Java AES/ECB/PKCS5Padding：重复明文块泄露模式，且不验证篡改。新系统应使用 GCM。';
 
 async function processLegacyEcb(
@@ -28,7 +27,6 @@ async function processLegacyEcb(
   );
   if (request.action === 'encrypt') {
     const input = parseBytes(request.input, dataEncoding, '明文');
-    if (input.length > ECB_LIMIT) throw new Error('ECB 兼容加密限 256 KiB 明文；请勿用于大文件。');
     if (padding === 'none' && input.length % CBC_BLOCK_BYTES) {
       throw new Error('ECB NoPadding 明文长度必须是 16 字节的整数倍。');
     }

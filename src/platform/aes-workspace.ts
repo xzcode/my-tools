@@ -1,6 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { SESSION_MAX_BYTES, restoreUnifiedWorkspace, snapshotWorkspace } from '../core/workspace';
+import { restoreUnifiedWorkspace, snapshotWorkspace } from '../core/workspace';
 
 const DB_NAME = 'my-tools-aes-workspace-v1';
 const STORE = 'vault';
@@ -53,7 +53,6 @@ export async function loadAesWorkspace(): Promise<string | null> {
   } catch { throw new Error('浏览器预览存档认证失败；原存档未被覆盖。'); }
 }
 export async function saveAesWorkspace(json: string): Promise<void> {
-  if (new TextEncoder().encode(json).byteLength > SESSION_MAX_BYTES) throw new Error('工作台自动保存上限为 32 MiB，请减少保存内容。');
   if (isTauri()) return invoke<void>('save_aes_workspace', { data: json });
   // Browser preview is deliberately not represented as an OS-keychain vault.
   // Use a non-extractable Web Crypto key stored via structured clone in IDB.

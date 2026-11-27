@@ -1,13 +1,12 @@
 import { Unzip, UnzipInflate, Unzlib, zipSync } from 'fflate';
 
-export const SVGA_FILE_LIMIT = 5 * 1024 * 1024;
 export const SVGA_EXPANDED_LIMIT = 32 * 1024 * 1024;
 export interface PreparedSvga { version: 1 | 2; bytes: Uint8Array; expanded: number }
 
 // Bound actual inflation, not merely the untrusted size advertised by ZIP headers.
 // Normalize legacy ZIP archives so the downstream parser sees only validated entries.
 export function prepareSvga(bytes: Uint8Array): PreparedSvga {
-  if (bytes.length < 4 || bytes.length > SVGA_FILE_LIMIT) throw Error('SVGA 文件为空、格式无效或超过 5 MiB。');
+  if (bytes.length < 4) throw Error('SVGA 文件为空或格式无效。');
   let expanded = 0;
   function account(size: number) {
     expanded += size;

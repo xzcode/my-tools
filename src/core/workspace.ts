@@ -1,10 +1,9 @@
-import { defaultOptions, getTool, tools } from './catalog';
+import { defaultOptions, getTool } from './catalog';
 import type { OptionValue, ToolResult } from './types';
 import { initialWorkspace as oldInitial, restoreWorkspace as restoreLegacy, configOptions as aesConfig, builtInTemplates } from './aes-workspace';
 import type { AesTab, AesTemplate, SaveMode, SaveFields, SecretField } from './aes-workspace';
 export { builtInTemplates };
 export type { SaveMode, SecretField };
-export const OPEN_LIMIT = 100, TOTAL_LIMIT = tools.length * OPEN_LIMIT, HISTORY_LIMIT = 200, TEMPLATE_LIMIT = 30, SESSION_MAX_BYTES = 32 * 1024 * 1024;
 export type BatchItem = { name: string; input: string; output?: string; error?: string; state: 'waiting' | 'running' | 'done' | 'error' };
 export interface ToolTab extends AesTab {
   toolId: string; secondaryInput: string; fileName: string; binarySourceName: string;
@@ -72,14 +71,14 @@ export function snapshotWorkspace(state: Workspace): Workspace {
   if (state.mode === 'off') return { version: 2, mode: 'off', fields: { ...state.fields }, tabs: [], activeIds: {}, history: [], templates: [] };
   return { version: 2, mode: state.mode, fields: { ...state.fields },
     tabs: state.tabs.map(t => projectTab(t, state)), activeIds: { ...state.activeIds },
-    history: state.history.slice(0,HISTORY_LIMIT).map(h => ({ id: h.id, at: h.at, type: h.type, tab: projectTab(h.tab,state) })),
-    templates: state.templates.slice(0,TEMPLATE_LIMIT).map(t => ({ id: t.id, name: t.name, options: aesConfig(t.options) })) };
+    history: state.history.map(h => ({ id: h.id, at: h.at, type: h.type, tab: projectTab(h.tab,state) })),
+    templates: state.templates.map(t => ({ id: t.id, name: t.name, options: aesConfig(t.options) })) };
 }
 function record(v: unknown): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('工作台存档结构无效。');
   return v as Record<string,unknown>;
 }
-function string(v: unknown, max = SESSION_MAX_BYTES) {
+function string(v: unknown, max = Infinity) {
   if (typeof v !== 'string' || v.length > max) throw Error('工作台存档字符串无效。');
   return v;
 }
@@ -93,7 +92,7 @@ function optionsFor(toolId: string, value: unknown) {
     if (option.type === 'select' && option.choices?.some(c => c.value === v)) out[option.key] = v as string;
     else if (option.type === 'checkbox' && typeof v === 'boolean') out[option.key] = v;
     else if (option.type === 'number' && typeof v === 'number' && Number.isFinite(v) && v >= (option.min ?? 0) && v <= (option.max ?? 100000)) out[option.key] = v;
-    else if ((option.type === 'text' || option.type === 'textarea') && typeof v === 'string' && v.length <= 65536) out[option.key] = v;
+    else if ((option.type === 'text' || option.type === 'textarea') && typeof v === 'string') out[option.key] = v;
     else throw Error('工作台存档选项无效：' + option.label);
   }
   return out;
@@ -111,7 +110,7 @@ function resultFor(value: unknown): ToolResult | null {
 function readTab(value: unknown): ToolTab {
   const t = record(value), toolId = string(t.toolId,80), tool = getTool(toolId);
   if (!tool || !tool.actions.some(a => a.id === t.action)) throw Error('工作台工具或操作无效。');
-  const batch = Array.isArray(t.batch) ? t.batch.slice(0,20).map(v => {
+  const batch = Array.isArray(t.batch) ? t.batch.map(v => {
     const b=record(v);
     return { name:string(b.name,512), input:string(b.input), output:typeof b.output==='string'?b.output:undefined, error:typeof b.error==='string'?b.error.slice(0,1000):undefined,
       state: (b.state==='done'||b.state==='error'?b.state:'waiting') as BatchItem['state'] };
@@ -121,7 +120,6 @@ function readTab(value: unknown): ToolTab {
     fileName:string(t.fileName??'',512), binarySourceName:string(t.binarySourceName??'',512), batch, batchVisible:t.batchVisible===true };
 }
 export function restoreUnifiedWorkspace(json: string): Workspace {
-  if (new TextEncoder().encode(json).length > SESSION_MAX_BYTES) throw Error('工作台存档超过 32 MiB。');
   const obj = record(JSON.parse(json));
   if (obj.version === 1) {
     const old = restoreLegacy(json), base = newWorkspace();
@@ -139,10 +137,9 @@ export function restoreUnifiedWorkspace(json: string): Workspace {
   const f = record(obj.fields);
   for (const k of Object.keys(base.fields) as SecretField[]) { if (typeof f[k] !== 'boolean') throw Error('工作台保存选项无效。'); base.fields[k] = f[k] as boolean; }
   if (base.mode === 'off') return base;
-  if (!Array.isArray(obj.tabs) || obj.tabs.length>TOTAL_LIMIT || !Array.isArray(obj.history) || obj.history.length>HISTORY_LIMIT || !Array.isArray(obj.templates) || obj.templates.length>TEMPLATE_LIMIT) throw Error('工作台存档数量无效。');
+  if (!Array.isArray(obj.tabs) || !Array.isArray(obj.history) || !Array.isArray(obj.templates)) throw Error('工作台存档数量无效。');
   base.tabs = obj.tabs.map(readTab);
   if (new Set(base.tabs.map(t=>t.id)).size !== base.tabs.length) throw Error('工作台标签重复。');
-  const groups: Record<string,number>={}; for(const t of base.tabs){groups[t.toolId]=(groups[t.toolId]??0)+1;if(groups[t.toolId]!>OPEN_LIMIT)throw Error('工具标签数量超限。');}
   base.activeIds = {};
   const ids = record(obj.activeIds);
   for (const t of base.tabs) if (!base.activeIds[t.toolId] || ids[t.toolId] === t.id) base.activeIds[t.toolId] = t.id;

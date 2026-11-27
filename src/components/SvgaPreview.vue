@@ -111,7 +111,7 @@ onBeforeUnmount(() => { generation++; dispose(); });
       <div class="svga-stage" :data-background="background">
         <canvas v-show="meta" ref="canvas" aria-label="SVGA 动画画布"></canvas>
         <div v-if="loading" class="svga-empty"><LoaderCircle :size="30" class="spin"/><strong>正在解析本地动画…</strong></div>
-        <div v-else-if="!meta" class="svga-empty"><Film :size="38"/><strong>{{ error ? '无法预览该文件' : '打开或拖入 .svga 文件' }}</strong><span>{{ error || '支持 SVGA 1.x / 2.x · 单文件最大 5 MiB' }}</span><button v-if="!tab.input" type="button" class="small-action" @click="emit('open')">选择本地文件</button></div>
+        <div v-else-if="!meta" class="svga-empty"><Film :size="38"/><strong>{{ error ? '无法预览该文件' : '打开或拖入 .svga 文件' }}</strong><span>{{ error || '支持 SVGA 1.x / 2.x · 本地文件' }}</span><button v-if="!tab.input" type="button" class="small-action" @click="emit('open')">选择本地文件</button></div>
       </div>
       <div class="svga-info">
         <strong>动画属性</strong>

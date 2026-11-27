@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { defaultOptions, getTool, tools } from '../src/core/catalog';
-import { duplicateTab, historyBefore, newToolTab, newWorkspace, restoreUnifiedWorkspace, snapshotWorkspace, OPEN_LIMIT } from '../src/core/workspace';
+import { duplicateTab, historyBefore, newToolTab, newWorkspace, restoreUnifiedWorkspace, snapshotWorkspace } from '../src/core/workspace';
 import { useWorkspace } from '../src/composables/useWorkspace';
 import { initialWorkspace } from '../src/core/aes-workspace';
 import { phoneCountries, inspectPhone, processPhone } from '../src/core/phone';
-import { prepareSvga, validateSvgaMetadata, SVGA_FILE_LIMIT } from '../src/core/svga';
+import { prepareSvga, validateSvgaMetadata } from '../src/core/svga';
 import { modernSvga, legacySvga } from './fixtures/svga';
 
 describe('unified workspace',()=>{
@@ -13,30 +13,38 @@ describe('unified workspace',()=>{
    expect(tools).toHaveLength(20);
    for(const tool of tools){const a=newToolTab(tool.id),b=newToolTab(tool.id);a.input='secret';expect(a.id).not.toBe(b.id);expect(b.input).toBe('');expect(b.options).toEqual(defaultOptions(tool));}
  });
- it('allows 100 tabs independently for each tool and restores every tab',()=>{
+ it('does not cap tab counts, templates or history and restores every record',()=>{
    const ws=useWorkspace();
    try {
      for(const toolId of ['json','aes']){
        ws.selectTool(toolId);
-       for(let n=1;n<OPEN_LIMIT;n++)expect(ws.create()).toBe(true);
-       expect(ws.tabs.value).toHaveLength(100);
-       expect(ws.create()).toBe(false);
+       for(let n=1;n<120;n++)expect(ws.create()).toBe(true);
+       expect(ws.tabs.value).toHaveLength(120);
        ws.active.value.input=toolId+' fixture';
      }
-     expect(ws.state.value.tabs).toHaveLength(200);
+     for(let n=0;n<40;n++)expect(ws.saveTemplate('Template '+n)).toBe(true);
+     for(let n=0;n<240;n++)ws.addHistory(ws.active.value,'run');
+     expect(ws.state.value.history).toHaveLength(240);
      ws.state.value.mode='full';
      const restored=restoreUnifiedWorkspace(JSON.stringify(snapshotWorkspace(ws.state.value)));
-     expect(restored.tabs).toHaveLength(200);
+     expect(restored.tabs).toHaveLength(240);
+     expect(restored.history).toHaveLength(240);
+     expect(restored.templates).toHaveLength(40);
      for(const id of ['json','aes'])expect(restored.tabs.find(t=>t.id===restored.activeIds[id])?.input).toBe(id+' fixture');
-     const excess=newToolTab('aes');
-     restored.tabs.push(excess);
-     expect(()=>restoreUnifiedWorkspace(JSON.stringify(restored))).toThrow('标签数量超限');
      ws.close(ws.active.value.id);
-     expect(ws.tabs.value).toHaveLength(99);
+     expect(ws.tabs.value).toHaveLength(119);
      expect(ws.reopen()).toBe('aes');
      expect(ws.active.value.input).toBe('aes fixture');
-     expect(ws.tabs.value).toHaveLength(100);
+     expect(ws.tabs.value).toHaveLength(120);
    }finally{ws.dispose();}
+ });
+ it('roundtrips a workspace above the former 32 MiB cap without truncation',()=>{
+   const w=newWorkspace();w.mode='full';
+   const text='x'.repeat(33*1024*1024);
+   w.tabs[0]!.input=text;
+   const json=JSON.stringify(snapshotWorkspace(w));
+   expect(json.length).toBeGreaterThan(32*1024*1024);
+   expect(restoreUnifiedWorkspace(json).tabs[0]!.input).toBe(text);
  });
  it('metadata-only snapshots exclude payloads, private text options and files, including history',()=>{
    const w=newWorkspace(),t=newToolTab('aes');t.input='SECRET_BODY';t.secondaryInput='SECRET_SECOND';t.options.rawKey='SECRET_KEY';t.options.prefix='SECRET_PREFIX';t.fileName='SECRET_FILE';t.result={output:'SECRET_RESULT'};
@@ -75,5 +83,5 @@ describe('international phone validation',()=>{
 });
 describe('SVGA preflight',()=>{
  it('accepts generated legacy ZIP and modern zlib files',()=>{expect(prepareSvga(legacySvga()).version).toBe(1);expect(prepareSvga(modernSvga()).version).toBe(2);});
- it('rejects invalid, oversized files and invalid metadata',()=>{expect(()=>prepareSvga(Buffer.from('bad file'))).toThrow();expect(()=>prepareSvga(new Uint8Array(SVGA_FILE_LIMIT+1))).toThrow();expect(()=>validateSvgaMetadata({videoSize:{width:10000,height:48},FPS:12,frames:2,sprites:[]})).toThrow();});
+ it('rejects invalid files and invalid metadata',()=>{expect(()=>prepareSvga(Buffer.from('bad file'))).toThrow();expect(()=>validateSvgaMetadata({videoSize:{width:10000,height:48},FPS:12,frames:2,sprites:[]})).toThrow();});
 });

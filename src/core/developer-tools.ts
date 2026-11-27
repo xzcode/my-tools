@@ -125,7 +125,6 @@ export function processSqlIn(request: ToolRequest): ToolResult {
 export function processRegex(request: ToolRequest): ToolResult {
   const pattern = optionText(request.options, 'pattern');
   const flags = optionText(request.options, 'flags');
-  if (request.input.length > 256 * 1024 || pattern.length > 4096) throw new Error('正则测试限 256 KiB 文本与 4096 字符表达式。');
   if (!/^[gimsuyd]*$/.test(flags) || new Set(flags).size !== flags.length) throw new Error('标志仅支持不重复的 g i m s u y d。');
   let regex: RegExp;
   try { regex = new RegExp(pattern, flags); } catch (error) { throw new Error(`正则表达式无效：${error instanceof Error ? error.message : String(error)}`); }
@@ -166,7 +165,6 @@ export function processRegex(request: ToolRequest): ToolResult {
   const matches: { match: string; index: number; captures: (string | undefined)[]; groups?: Record<string, string>; indices?: RegExpIndicesArray }[] = [];
   let match: RegExpExecArray | null;
   while ((match = regex.exec(request.input)) !== null) {
-    if (matches.length >= 5000) throw new Error('匹配超过 5000 项，请缩小范围。');
     matches.push({ match: match[0], index: match.index, captures: match.slice(1), groups: match.groups, indices: match.indices });
     if (!regex.global) break;
     if (match[0] === '') {

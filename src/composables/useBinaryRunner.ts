@@ -18,8 +18,7 @@ export function useBinaryRunner() {
         reject(new Error('当前环境无法启动文件处理进程。'));
         return;
       }
-      const cleanup = () => { clearTimeout(timer); worker.terminate(); busy.value = false; cancelCurrent = undefined; };
-      const timer = setTimeout(() => { cleanup(); reject(new Error('文件处理超时，已中断。')); }, 10000);
+      const cleanup = () => { worker.terminate(); busy.value = false; cancelCurrent = undefined; };
       cancelCurrent = () => { cleanup(); reject(new Error('文件处理已取消。')); };
       worker.onmessage = (event: MessageEvent<{ output?: string; bytes?: Uint8Array; error?: string }>) => {
         cleanup();

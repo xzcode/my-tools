@@ -84,7 +84,9 @@ describe('Java AES/ECB/PKCS5Padding legacy compatibility', () => {
     expect((await executeTool({toolId:'aes',action:'decrypt',input:old.output,options:{password:pw}})).output).toBe('old secret');
   });
 
-  it('bounds costly compatibility encryption to short texts', async () => {
-    await expect(run('x'.repeat(256 * 1024 + 1), 'encrypt')).rejects.toThrow('256 KiB');
-  });
+  it('accepts ECB data beyond the former 256 KiB quota', async () => {
+    const plain='x'.repeat(256*1024+1);
+    const encrypted=await run(plain,'encrypt');
+    expect((await run(encrypted.output,'decrypt')).output).toBe(plain);
+  },15000);
 });

@@ -166,9 +166,6 @@ async fn read_clipboard(window: WebviewWindow, app: AppHandle) -> Result<String,
         .clipboard()
         .read_text()
         .map_err(|e| format!("无法读取剪贴板文本：{e}"))?;
-    if text.len() > files::MAX_INPUT_BYTES {
-        return Err("剪贴板文本不能超过 5 MiB".into());
-    }
     Ok(text)
 }
 
@@ -179,9 +176,6 @@ async fn write_clipboard(
     text: String,
 ) -> Result<(), String> {
     trusted(&window)?;
-    if text.len() > files::MAX_BATCH_BYTES {
-        return Err("复制内容不能超过 20 MiB".into());
-    }
     app.clipboard()
         .write_text(text)
         .map_err(|e| format!("无法写入剪贴板：{e}"))

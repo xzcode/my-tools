@@ -28,9 +28,6 @@ export const defaultPreferences: DesktopPreferences = {
   theme: 'system', favorites: [], recent: [], shortcut: 'CmdOrCtrl+Shift+Space', closeToTray: true, lastTool: 'json',
 };
 const PREFERENCES_KEY = 'my-tools.preferences.v1';
-const MAX_INPUT_BYTES = 5 * 1024 * 1024;
-const MAX_BATCH_BYTES = 20 * 1024 * 1024;
-const MAX_FILES = 20;
 const encoder = new TextEncoder();
 const preferenceKeys = ['theme', 'favorites', 'recent', 'shortcut', 'closeToTray', 'lastTool'];
 
@@ -74,30 +71,20 @@ export async function savePreferences(preferences: DesktopPreferences): Promise<
   return validated;
 }
 
-function checkSize(text: string, limit: number): void {
-  if (encoder.encode(text).length > limit) throw new Error(`内容不能超过 ${limit / 1024 / 1024} MiB`);
-}
-
 export async function readClipboard(): Promise<string> {
   if (isDesktop()) return invoke<string>('read_clipboard');
   if (!navigator.clipboard?.readText) throw new Error('当前浏览器不能读取剪贴板，请手动粘贴');
   const text = await navigator.clipboard.readText();
-  checkSize(text, MAX_INPUT_BYTES);
   return text;
 }
 
 export async function writeClipboard(text: string): Promise<void> {
-  checkSize(text, MAX_BATCH_BYTES);
   if (isDesktop()) return invoke<void>('write_clipboard', { text });
   if (!navigator.clipboard?.writeText) throw new Error('当前浏览器不能访问剪贴板，请手动复制');
   await navigator.clipboard.writeText(text);
 }
 
 export async function readBrowserFiles(files: File[]): Promise<ImportedFile[]> {
-  if (files.length > MAX_FILES) throw new Error('一次最多导入 20 个文件');
-  if (files.some(file => file.size > MAX_INPUT_BYTES) || files.reduce((total, file) => total + file.size, 0) > MAX_BATCH_BYTES) {
-    throw new Error('单文件上限 5 MiB，一批文件总量上限 20 MiB');
-  }
   return Promise.all(files.map(async file => {
     try { return { name: file.name, content: new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()) }; }
     catch { throw new Error(`${file.name} 不是有效的 UTF-8 文本，请先转换文件编码`); }
@@ -138,7 +125,6 @@ export async function openBinaryFile(kind?: 'svga'): Promise<BinaryFile | null> 
       const file = input.files?.[0];
       input.remove();
       if (!file) { resolve(null); return; }
-      if (file.size > MAX_INPUT_BYTES) { reject(new Error('单个文件不能超过 5 MiB')); return; }
       try { resolve({ name: file.name, bytes: Array.from(new Uint8Array(await file.arrayBuffer())) }); }
       catch (error) { reject(error); }
     };
@@ -150,7 +136,6 @@ export async function openBinaryFile(kind?: 'svga'): Promise<BinaryFile | null> 
 
 export async function saveBinaryFile(bytes: number[], name = 'decoded.bin'): Promise<boolean> {
   validateName(name);
-  if (bytes.length > MAX_INPUT_BYTES) throw new Error('二进制文件不能超过 5 MiB');
   if (bytes.some(value => !Number.isInteger(value) || value < 0 || value > 255)) throw new Error('二进制内容包含无效字节');
   if (isDesktop()) return invoke<boolean>('save_binary_file', { bytes, name });
   download(new Blob([Uint8Array.from(bytes)], { type: 'application/octet-stream' }), name);
@@ -176,7 +161,6 @@ function download(blob: Blob, name: string): void {
 
 export async function saveTextFile(content: string, name = 'output.txt'): Promise<boolean> {
   validateName(name);
-  checkSize(content, MAX_BATCH_BYTES);
   if (isDesktop()) return invoke<boolean>('save_text_file', { content, name });
   download(new Blob([content], { type: 'text/plain;charset=utf-8' }), name);
   return true;
@@ -184,6 +168,7 @@ export async function saveTextFile(content: string, name = 'output.txt'): Promis
 
 // Store-only ZIP for browser previews. Keeps a batch in one download with UTF-8 names.
 function makeZip(files: ExportFile[]): Blob {
+  if (files.length > 65535) throw new Error('浏览器 ZIP 格式最多支持 65535 个文件；桌面版可直接导出到目录。');
   const parts: ArrayBuffer[] = [];
   const directory: ArrayBuffer[] = [];
   let offset = 0;
@@ -198,6 +183,7 @@ function makeZip(files: ExportFile[]): Blob {
   for (const file of files) {
     const name = encoder.encode(file.name);
     const data = encoder.encode(file.content);
+    if (data.length > 0xffffffff || offset + 30 + name.length + data.length > 0xffffffff) throw new Error('浏览器 ZIP 格式超过 4 GiB；请使用桌面版目录导出。');
     const crc = crc32(data);
     const local = new ArrayBuffer(30 + name.length);
     const l = new DataView(local);
@@ -215,6 +201,7 @@ function makeZip(files: ExportFile[]): Blob {
     directory.push(central);
     offset += local.byteLength + data.length;
   }
+  if (offset + directory.reduce((sum, item) => sum + item.byteLength, 0) > 0xffffffff) throw new Error('浏览器 ZIP 格式超过 4 GiB；请使用桌面版目录导出。');
   const end = new ArrayBuffer(22);
   const e = new DataView(end);
   e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
@@ -223,16 +210,13 @@ function makeZip(files: ExportFile[]): Blob {
 }
 
 export async function saveBatchFiles(files: ExportFile[]): Promise<number> {
-  if (!files.length || files.length > MAX_FILES) throw new Error('一次只能导出 1–20 个文件');
+  if (!files.length) throw new Error('没有需要导出的文件。');
   const names = new Set<string>();
-  let bytes = 0;
   for (const file of files) {
     validateName(file.name);
     if (names.has(file.name.toLowerCase())) throw new Error('批量导出文件名重复');
     names.add(file.name.toLowerCase());
-    bytes += encoder.encode(file.content).length;
   }
-  if (bytes > MAX_BATCH_BYTES) throw new Error('批量导出总量不能超过 20 MiB');
   if (isDesktop()) return invoke<number>('save_batch_files', { files });
   download(makeZip(files), 'my-tools-results.zip');
   return files.length;
@@ -307,7 +291,7 @@ export async function onPreferencesChanged(handler: (preferences: DesktopPrefere
 
 export async function getDesktopStatus(): Promise<DesktopStatus> {
   if (isDesktop()) return invoke<DesktopStatus>('get_desktop_status');
-  return { version: '0.6.1', platform: 'browser', shortcut: '', shortcutError: null, trayAvailable: false, updaterEnabled: false };
+  return { version: '0.6.2', platform: 'browser', shortcut: '', shortcutError: null, trayAvailable: false, updaterEnabled: false };
 }
 
 export async function checkForUpdates(): Promise<UpdateStatus> {

@@ -1,6 +1,6 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { getTool } from '../core/catalog';
-import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, OPEN_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT, SESSION_MAX_BYTES, builtInTemplates } from '../core/workspace';
+import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, builtInTemplates } from '../core/workspace';
 import type { ToolTab, HistoryEntry, SaveMode } from '../core/workspace';
 import type { ToolResult, ToolRequest } from '../core/types';
 import { useToolRunner } from './useToolRunner';
@@ -58,7 +58,7 @@ export function useWorkspace() {
     if(blocked.value)return false;
     const at=revision;if(lastSaved===at&&saveStatus.value==='saved')return true;
     let json:string;
-    try{json=JSON.stringify(snapshotWorkspace(state.value));if(new TextEncoder().encode(json).byteLength>SESSION_MAX_BYTES)throw Error('自动保存上限 32 MiB；请清理历史记录、减少保存内容或调整保存范围。');}
+    try{json=JSON.stringify(snapshotWorkspace(state.value));}
     catch(e){saveError.value=e instanceof Error?e.message:String(e);saveStatus.value='error';return false;}
     saveStatus.value='saving';
     const task=queue.catch(()=>undefined).then(()=>saveAesWorkspace(json));queue=task;
@@ -76,7 +76,7 @@ export function useWorkspace() {
     state.value.mode=previous;await nextTick();clearTimeout(timer);saveStatus.value='error';return false;
   }
   function select(id:string){const t=state.value.tabs.find(t=>t.id===id);if(t){state.value.activeIds[t.toolId]=id;toolId.value=t.toolId;}}
-  function canCreate(id=toolId.value){return !!getTool(id)&&state.value.tabs.filter(t=>t.toolId===id).length<OPEN_LIMIT;}
+  function canCreate(id=toolId.value){return !!getTool(id);}
   function create(){
     if(!canCreate())return false;
     let n=1;while(tabs.value.some(t=>t.name===tabName(toolId.value,n)))n++;
@@ -93,7 +93,7 @@ export function useWorkspace() {
   function addHistory(tab:ToolTab,type:HistoryEntry['type']){
     const entry:HistoryEntry={id:crypto.randomUUID(),at:Date.now(),type,tab:clone(tab)};
     entry.tab.batch=entry.tab.batch.map(b=>({...b,state:b.state==='running'?'waiting':b.state}));
-    state.value.history.unshift(entry);state.value.history.splice(HISTORY_LIMIT);
+    state.value.history.unshift(entry);
   }
   function close(id:string){
     const t=state.value.tabs.find(t=>t.id===id);if(!t)return;
@@ -130,7 +130,6 @@ export function useWorkspace() {
     name=name.trim().slice(0,100);if(!name||toolId.value!=='aes')return false;
     const opts=safeOptions('aes',active.value.options),t=state.value.templates.find(x=>x.id===id);
     if(t){t.name=name;t.options=opts;return true;}
-    if(state.value.templates.length>=TEMPLATE_LIMIT)return false;
     state.value.templates.push({id:crypto.randomUUID(),name,options:opts});return true;
   }
   function removeTemplate(id:string){state.value.templates=state.value.templates.filter(t=>t.id!==id);}
@@ -146,7 +145,6 @@ export function useWorkspace() {
   async function runActive(){
     const t=active.value;if(busy(t)||t.toolId==='svga')return;
     const req=requestFor(t);
-    if(new TextEncoder().encode(req.input).length>5*1024*1024||new TextEncoder().encode(req.secondaryInput??'').length>5*1024*1024){t.error='单次文本最大 5 MiB。';return;}
     const before=clone(t),token=begin(t),start=performance.now();t.error='';if(t.result)t.stale=true;
     try{
       const result=await runnerFor(t.id).run(req);if(!live(t,token))return;
@@ -158,13 +156,12 @@ export function useWorkspace() {
   async function runBatch(t=active.value){
     if(!t.batch.length||busy(t))return;
     const token=(tokens.get(t.id)??0)+1;tokens.set(t.id,token);batchJobs.value=[...batchJobs.value,t.id];
-    const req=requestFor(t);let total=0;
+    const req=requestFor(t);
     for(const item of t.batch){item.state='waiting';item.output=undefined;item.error=undefined;}
     for(const item of t.batch){
       if(!live(t,token))break;item.state='running';
       try{const value=await runnerFor(t.id).run({...req,input:item.input});if(!live(t,token))break;
-        const bytes=new TextEncoder().encode(value.output).length;if(total+bytes>20*1024*1024)throw Error('本批次结果超过 20 MiB。');
-        total+=bytes;item.output=value.output;item.state='done';
+        item.output=value.output;item.state='done';
       }catch(e){if(!live(t,token))break;item.error=e instanceof Error?e.message:String(e);item.state='error';}
     }
     if(live(t,token)){batchJobs.value=batchJobs.value.filter(x=>x!==t.id);addHistory(t,'run');}

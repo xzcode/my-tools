@@ -18,5 +18,5 @@ export default defineConfig({
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
       : undefined,
   },
-  webServer: { command: 'npm run dev', url: 'http://127.0.0.1:1420', reuseExistingServer: !process.env.CI, timeout: 20000 },
+  webServer: { command: process.env.CI ? 'npx vite preview --host 127.0.0.1 --port 1420 --strictPort' : 'npm run dev', url: 'http://127.0.0.1:1420', reuseExistingServer: !process.env.CI, timeout: 20000 },
 });
