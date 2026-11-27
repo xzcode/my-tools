@@ -38,3 +38,7 @@ Vue 与 Vite 负责界面；lossless-json、YAML、Papa Parse、sql-formatter、
 ## 版本与构建
 
 `package.json`、`src-tauri/Cargo.toml`、`tauri.conf.json` 使用相同版本。构建脚本先运行 TypeScript 和前端构建；CI 在 macOS、Windows、Linux 各自的 runner 编译 Rust 并生成安装包。各平台安装包并不等同于跨平台原生交互验收，状态分别记录。
+
+### v0.6.0 统一工作台
+
+工作台模型和迁移/字段投影位于 src/core/workspace.ts；任务、标签、历史及保存队列在 src/composables/useWorkspace.ts；WorkspaceBar 为共享界面。Rust 按 src-tauri/src/workspace_options.json 验证配置型存档，使用 scripts/generate-workspace-schema.mjs 从目录生成白名单。保留 v1 AES 存档解析以兼容旧数据。完整存档复用既有原生加密存储；SVGA 使用受限文件授权、解压预检及播放器 Worker，手机号码规则与国旗资源随应用分发，不依赖网络。

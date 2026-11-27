@@ -1,6 +1,6 @@
 {
   "name": "my-tools",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "license": "MIT",
   "description": "An offline personal developer toolbox for macOS, Windows and Linux.",
@@ -26,9 +26,13 @@
     "@lucide/vue": "^1.77.0",
     "@tauri-apps/api": "^2.12.5",
     "diff": "^9.0.0",
+    "fflate": "0.8.2",
+    "flag-icons": "7.6.0",
+    "libphonenumber-js": "1.13.17",
     "lossless-json": "^4.3.4",
     "papaparse": "^5.7.1",
     "sql-formatter": "^15.9.1",
+    "svga.lite": "1.6.1",
     "vue": "^3.5.45",
     "yaml": "^2.9.1"
   },

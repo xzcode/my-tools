@@ -1,3 +1,4 @@
+import { processPhone } from './phone';
 import { defaultOptions, getTool } from './catalog';
 import type { ToolRequest, ToolResult } from './types';
 import { encoder, MAX_INPUT_BYTES, MAX_OUTPUT_BYTES } from './shared';
@@ -44,6 +45,8 @@ export async function executeTool(request: ToolRequest): Promise<ToolResult> {
     case 'convert': result = processConvert(normalized); break;
     case 'curl': result = processCurl(normalized); break;
     case 'aes': result = await processAes(normalized); break;
+    case 'phone': result = processPhone(normalized); break;
+    case 'svga': result = { output: '请在 SVGA 文件预览界面打开本地动画文件。' }; break;
     case 'password': result = processPassword(normalized); break;
     default: throw new Error('工具尚未实现。');
   }

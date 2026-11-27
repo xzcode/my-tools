@@ -1,4 +1,4 @@
-//! Explicit opt-in persistence for AES workspace only.
+//! Explicit opt-in persistence for all tool workspaces.
 //! Native full snapshots use AES-GCM with a randomly generated key held in the
 //! platform credential store. A missing/locked key must never fall back to plaintext.
 use aes_gcm::{
@@ -18,7 +18,7 @@ use std::{
 };
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
-const MAX_BYTES: usize = 4 * 1024 * 1024;
+const MAX_BYTES: usize = 32 * 1024 * 1024;
 const CONFIG: &[u8] = b"MT-AES-CONFIG\x01";
 const FULL: &[u8] = b"MT-AES-WORKSPACE\x01";
 const SERVICE: &str = "io.xzcode.mytools";
@@ -192,11 +192,147 @@ fn metadata_safe(data: &Value) -> bool {
             })
     })
 }
+fn metadata_safe_v2(data: &Value) -> bool {
+    let Ok(schema) = serde_json::from_str::<Value>(include_str!("workspace_options.json")) else {
+        return false;
+    };
+    fn id(v: &Value) -> bool {
+        v.as_str().is_some_and(|s| {
+            !s.is_empty()
+                && s.len() <= 100
+                && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+        })
+    }
+    fn label(v: &Value) -> bool {
+        v.as_str().is_some_and(|s| s.len() <= 400)
+    }
+    fn opts(v: &Value, defs: &Value) -> bool {
+        v.as_object().is_some_and(|o| {
+            o.iter().all(|(k, v)| {
+                let def = &defs[k];
+                match def["type"].as_str() {
+                    Some("select") => def["values"].as_array().is_some_and(|a| a.contains(v)),
+                    Some("checkbox") => v.is_boolean(),
+                    Some("number") => v.as_f64().is_some_and(|n| {
+                        n.is_finite()
+                            && n >= def["min"].as_f64().unwrap_or(0.0)
+                            && n <= def["max"].as_f64().unwrap_or(100000.0)
+                    }),
+                    _ => false,
+                }
+            })
+        })
+    }
+    fn tab(v: &Value, schema: &Value) -> bool {
+        let Some(tool) = v["toolId"].as_str() else {
+            return false;
+        };
+        let defs = &schema[tool];
+        v.as_object().is_some_and(|o| {
+            o.keys().all(|k| {
+                [
+                    "id",
+                    "toolId",
+                    "name",
+                    "action",
+                    "input",
+                    "secondaryInput",
+                    "options",
+                    "result",
+                    "error",
+                    "stale",
+                    "elapsed",
+                    "outputView",
+                    "fileName",
+                    "binarySourceName",
+                    "batch",
+                    "batchVisible",
+                ]
+                .contains(&k.as_str())
+            })
+        }) && id(&v["id"])
+            && label(&v["name"])
+            && defs["actions"]
+                .as_array()
+                .is_some_and(|a| a.contains(&v["action"]))
+            && opts(&v["options"], &defs["options"])
+            && [
+                "input",
+                "secondaryInput",
+                "error",
+                "fileName",
+                "binarySourceName",
+            ]
+            .iter()
+            .all(|k| v[*k].as_str() == Some(""))
+            && v["result"].is_null()
+            && v["stale"].as_bool() == Some(false)
+            && v["elapsed"].as_u64() == Some(0)
+            && v["outputView"].as_str() == Some("text")
+            && v["batch"].as_array().is_some_and(|a| a.is_empty())
+            && v["batchVisible"].as_bool() == Some(false)
+    }
+    data.as_object().is_some_and(|o| {
+        o.keys().all(|k| {
+            [
+                "version",
+                "mode",
+                "fields",
+                "tabs",
+                "activeIds",
+                "history",
+                "templates",
+            ]
+            .contains(&k.as_str())
+        })
+    }) && data["fields"].as_object().is_some_and(|o| {
+        o.len() == 6
+            && o.iter().all(|(k, v)| {
+                ["key", "iv", "aad", "prefix", "input", "output"].contains(&k.as_str())
+                    && v.is_boolean()
+            })
+    }) && data["activeIds"]
+        .as_object()
+        .is_some_and(|o| o.iter().all(|(k, v)| schema.get(k).is_some() && id(v)))
+        && data["tabs"]
+            .as_array()
+            .is_some_and(|a| a.len() <= 96 && a.iter().all(|v| tab(v, &schema)))
+        && data["history"].as_array().is_some_and(|a| {
+            a.len() <= 200
+                && a.iter().all(|v| {
+                    v.as_object().is_some_and(|o| {
+                        o.keys()
+                            .all(|k| ["id", "at", "type", "tab"].contains(&k.as_str()))
+                    }) && id(&v["id"])
+                        && v["at"].as_u64().is_some()
+                        && matches!(v["type"].as_str(), Some("closed" | "run"))
+                        && tab(&v["tab"], &schema)
+                })
+        })
+        && data["templates"].as_array().is_some_and(|a| {
+            a.len() <= 30
+                && a.iter().all(|t| {
+                    t.as_object().is_some_and(|o| {
+                        o.keys()
+                            .all(|k| ["id", "name", "options"].contains(&k.as_str()))
+                    }) && id(&t["id"])
+                        && label(&t["name"])
+                        && opts(&t["options"], &schema["aes"]["options"])
+                })
+        })
+}
 fn validate(data: &str) -> Result<bool, String> {
     if data.len() > MAX_BYTES {
-        return Err("AES 工作台自动存档超过 4 MiB；请减少保存内容。".into());
+        return Err("工作台自动存档超过 32 MiB；请减少保存内容。".into());
     }
     let value: Value = serde_json::from_str(data).map_err(|_| "AES 工作台存档 JSON 无效。")?;
+    if value["version"].as_u64() == Some(2) {
+        return match value["mode"].as_str() {
+            Some("full") => Ok(true),
+            Some("config" | "off") if metadata_safe_v2(&value) => Ok(false),
+            _ => Err("仅配置保存拒绝了敏感数据或无效字段。".into()),
+        };
+    }
     if value["version"].as_u64() != Some(1) {
         return Err("不支持的 AES 工作台存档版本。".into());
     }
@@ -417,5 +553,24 @@ mod tests {
         let file = dir.path().join("workspace");
         save_impl(&file, data).unwrap();
         assert_eq!(load_impl(&file).unwrap(), Some(data.to_string()));
+    }
+    #[test]
+    fn unified_config_validates_tool_options_and_history() {
+        let data = r#"{"version":2,"mode":"config","fields":{"key":true,"iv":true,"aad":true,"prefix":true,"input":true,"output":true},"activeIds":{"phone":"a"},"tabs":[{"id":"a","toolId":"phone","name":"phone 1","action":"validate","input":"","secondaryInput":"","options":{"country":"CN"},"result":null,"error":"","stale":false,"elapsed":0,"outputView":"text","fileName":"","binarySourceName":"","batch":[],"batchVisible":false}],"history":[],"templates":[]}"#;
+        assert_eq!(validate(data), Ok(false));
+        let mut v: Value = serde_json::from_str(data).unwrap();
+        v["tabs"][0]["options"]["country"] = serde_json::json!("invalid");
+        assert!(validate(&v.to_string()).is_err());
+        v["tabs"][0]["options"]["country"] = serde_json::json!("MY");
+        v["tabs"][0]["options"]["secret"] = serde_json::json!("private");
+        assert!(validate(&v.to_string()).is_err());
+        v["tabs"][0]["options"]
+            .as_object_mut()
+            .unwrap()
+            .remove("secret");
+        let mut tab = v["tabs"][0].clone();
+        tab["input"] = serde_json::json!("private");
+        v["history"] = serde_json::json!([{"id":"h1","at":100,"type":"closed","tab":tab}]);
+        assert!(validate(&v.to_string()).is_err());
     }
 }

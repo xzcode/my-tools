@@ -127,11 +127,12 @@ export async function readDroppedFiles(paths: string[]): Promise<ImportedFile[]>
   return invoke<ImportedFile[]>('read_dropped_files', { paths });
 }
 
-export async function openBinaryFile(): Promise<BinaryFile | null> {
-  if (isDesktop()) return invoke<BinaryFile | null>('open_binary_file');
+export async function openBinaryFile(kind?: 'svga'): Promise<BinaryFile | null> {
+  if (isDesktop()) return invoke<BinaryFile | null>('open_binary_file', { kind: kind ?? null });
   return new Promise<BinaryFile | null>((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
+    if (kind === 'svga') input.accept = '.svga';
     input.hidden = true;
     input.onchange = async () => {
       const file = input.files?.[0];
@@ -272,6 +273,14 @@ export async function onOpenTool(handler: (toolId: string) => void): Promise<Unl
   return () => window.removeEventListener('my-tools:open-tool', callback);
 }
 
+export async function readDroppedBinaryFile(path: string): Promise<BinaryFile> {
+  if (!isDesktop()) throw new Error('只能读取刚刚拖入当前窗口的文件。');
+  return invoke<BinaryFile>('read_dropped_binary_file', { path });
+}
+export async function onRawFileDrop(handler: (paths: string[]) => void): Promise<UnlistenFn> {
+  if (!isDesktop()) return () => {};
+  return getCurrentWebviewWindow().listen<string[]>('my-tools:files-dropped', event => handler(event.payload));
+}
 export async function onFileDrop(handler: (files: ImportedFile[]) => void, onError?: (message: string) => void): Promise<UnlistenFn> {
   if (!isDesktop()) return () => {};
   return getCurrentWebviewWindow().listen<string[]>('my-tools:files-dropped', async event => {
@@ -298,7 +307,7 @@ export async function onPreferencesChanged(handler: (preferences: DesktopPrefere
 
 export async function getDesktopStatus(): Promise<DesktopStatus> {
   if (isDesktop()) return invoke<DesktopStatus>('get_desktop_status');
-  return { version: '0.1.0', platform: 'browser', shortcut: '', shortcutError: null, trayAvailable: false, updaterEnabled: false };
+  return { version: '0.6.0', platform: 'browser', shortcut: '', shortcutError: null, trayAvailable: false, updaterEnabled: false };
 }
 
 export async function checkForUpdates(): Promise<UpdateStatus> {

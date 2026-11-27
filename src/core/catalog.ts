@@ -1,3 +1,4 @@
+import { phoneCountries } from './phone';
 import type { OptionValue, ToolCategory, ToolDefinition, ToolOption } from './types';
 
 const select = (key: string, label: string, choices: [string, string][], defaultValue = choices[0]![0]): ToolOption => ({ key, label, type: 'select', defaultValue, choices: choices.map(([value, label]) => ({ value, label })) });
@@ -49,6 +50,12 @@ export const tools: ToolDefinition[] = [
   { id: 'json-diff', name: 'JSON 对比', description: '按字段比较结构差异，忽略对象键名顺序。', category: 'data', icon: 'git-compare', keywords: ['json', 'diff', '对比', '结构'], inputLabel: '原始 JSON', secondaryInputLabel: '修改后 JSON', sampleInput: '{"name":"My Tools","version":1,"enabled":true}', sampleSecondaryInput: '{"enabled":true,"name":"My Tools","version":2,"theme":"dark"}', options: [], actions: actions(['compare', '对比 JSON']), defaultAction: 'compare', extension: 'json' },
   { id: 'convert', name: 'JSON · YAML · CSV', description: '本地转换数据格式；CSV 默认保留所有字段为字符串。', category: 'data', icon: 'arrows', keywords: ['json', 'yaml', 'csv', '转换'], sampleInput: '[{"name":"Jojo","role":"developer"},{"name":"My Tools","role":"assistant"}]',
     options: [select('from', '输入格式', [['json', 'JSON'], ['yaml', 'YAML'], ['csv', 'CSV']]), select('to', '输出格式', [['yaml', 'YAML'], ['json', 'JSON'], ['csv', 'CSV']]), check('csvHeader', 'CSV 首行为列名'), check('escapeFormulae', 'CSV 防止电子表格公式执行')], actions: actions(['convert', '转换']), defaultAction: 'convert', extension: 'txt', supportsBatch: true },
+  { id: 'phone', name: '国际手机号校验', description: '覆盖国际号码规划中的国家与地区，校验、区分号码类型并转换 E.164。', category: 'developer', icon: 'phone', keywords: ['phone', 'mobile', 'e164', '手机号', '电话', '区号', '国家', '号码校验'],
+    inputLabel: '手机号 / 电话号码（每行一个）', sampleInput: '13800138000',
+    options: [select('country', '国家 / 地区与区号', phoneCountries.map(c => [c.code, c.name + ' ' + c.dial]), 'CN')],
+    actions: actions(['validate', '校验号码']), defaultAction: 'validate', extension: 'json', supportsBatch: true },
+  { id: 'svga', name: 'SVGA 动画预览', description: '本地打开 SVGA 文件，离线播放、暂停、逐帧预览和查看动画属性。', category: 'developer', icon: 'film', keywords: ['svga', 'animation', '动画', '预览', '本地文件'],
+    sampleInput: '', options: [], actions: actions(['preview', '预览']), defaultAction: 'preview', extension: 'svga' },
   { id: 'aes', name: 'AES 加解密', description: '简单模式认证加密；高级模式支持 GCM/CBC 和 Java ECB/PKCS5Padding 兼容。', category: 'encoding', icon: 'lock', keywords: ['aes', 'gcm', 'cbc', 'ecb', 'java', 'pkcs5padding', 'pkcs7', 'key', 'iv', '加密', '解密', '口令', '密文'], sampleInput: '你好，My Tools 👋\n需要加密的私密文字',
     options: [
       select('profile', 'AES 工作模式', [['simple', '简单模式 · 随机盐 / IV'], ['advanced', '高级模式 · 原始 Key / IV']]),

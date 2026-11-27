@@ -485,6 +485,7 @@ pub fn run() {
             files::save_text_file,
             files::save_batch_files,
             files::read_dropped_files,
+            files::read_dropped_binary_file,
             load_preferences,
             save_preferences,
             files::open_binary_file,

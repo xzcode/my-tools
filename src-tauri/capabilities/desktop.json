@@ -15,6 +15,7 @@
     "allow-save-text-file",
     "allow-save-batch-files",
     "allow-read-dropped-files",
+    "allow-read-dropped-binary-file",
     "allow-open-binary-file",
     "allow-save-binary-file",
     "allow-load-preferences",

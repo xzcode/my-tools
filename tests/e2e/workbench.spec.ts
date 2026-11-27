@@ -316,7 +316,7 @@ test('AES session restore keeps only configuration by default and requires conse
   await expect(page.getByLabel('密文前缀', { exact: true })).toHaveValue('fixture-prefix:');
   await expect(page.getByRole('textbox', { name: '输入内容', exact: true })).toHaveValue('fixture-text-data');
   await page.locator('.aes-save-status').click();
-  await page.getByRole('button', { name: '清除全部 AES 工作台' }).click();
+  await page.getByRole('button', { name: '清除全部工作台' }).click();
   await page.getByRole('button', { name: '确认清除', exact: true }).click();
   await expect(page.getByLabel('密文前缀', { exact: true })).toHaveValue('');
 });

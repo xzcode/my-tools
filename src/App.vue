@@ -3,18 +3,19 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { parse } from 'lossless-json';
 import { Search, Star, Settings2, ChevronRight, ArrowUpRight, Copy, ClipboardPaste, FolderOpen, Download, ArrowLeftRight, Trash2, Play, Square, Check, X, Monitor, Moon, Sun, ShieldCheck, CornerDownLeft, SlidersHorizontal, Braces, Files, CircleAlert, LoaderCircle, PanelLeftClose, PanelLeftOpen, Keyboard, CheckCircle2, RotateCcw, ArrowRight, PackageCheck } from '@lucide/vue';
 import { categories, tools, getTool, defaultOptions } from './core/catalog';
-import type { OptionValue, ToolResult, ToolDefinition } from './core/types';
-import { useToolRunner } from './composables/useToolRunner';
-import { useAesWorkspace } from './composables/useAesWorkspace';
-import AesTabBar from './components/AesTabBar.vue';
+import type { ToolResult, ToolDefinition } from './core/types';
+import { useWorkspace } from './composables/useWorkspace';
+import WorkspaceBar from './components/WorkspaceBar.vue';
+import PhoneCountrySelect from './components/PhoneCountrySelect.vue';
+import SvgaPreview from './components/SvgaPreview.vue';
 import { registerAesExit, exitWithoutSavingAesWorkspace } from './platform/aes-workspace';
-import type { AesTab } from './core/aes-workspace';
-import { useBinaryRunner } from './composables/useBinaryRunner';
+import type { ToolTab } from './core/workspace';
+import { encodeBase64Bytes } from './core/encoding';
 import CodeEditor from './components/CodeEditor.vue';
 import JsonTree from './components/JsonTree.vue';
 import ToolIcon from './components/ToolIcon.vue';
-import { isDesktop, defaultPreferences, loadPreferences, savePreferences, openTextFiles, saveTextFile, saveBatchFiles, readClipboard, writeClipboard, showMainWindow, hideCurrentWindow, onOpenTool, onFileDrop, onPreferencesChanged, onLauncherShown, openBinaryFile, saveBinaryFile, readBrowserFiles, getDesktopStatus, checkForUpdates, installUpdate } from './platform/desktop';
-import type { DesktopPreferences, ImportedFile } from './platform/desktop';
+import { isDesktop, defaultPreferences, loadPreferences, savePreferences, openTextFiles, saveTextFile, saveBatchFiles, readClipboard, writeClipboard, showMainWindow, hideCurrentWindow, onOpenTool, onRawFileDrop, readDroppedFiles, readDroppedBinaryFile, onPreferencesChanged, onLauncherShown, openBinaryFile, saveBinaryFile, readBrowserFiles, getDesktopStatus, checkForUpdates, installUpdate } from './platform/desktop';
+import type { DesktopPreferences, ImportedFile, BinaryFile } from './platform/desktop';
 
 const launcher = new URLSearchParams(location.search).get('window') === 'launcher';
 const desktop = isDesktop();
@@ -22,24 +23,19 @@ const mac = /Mac/.test(navigator.platform);
 const modifier = mac ? '⌘' : 'Ctrl';
 const preferences = ref<DesktopPreferences>({ ...defaultPreferences, favorites: [...defaultPreferences.favorites], recent: [...defaultPreferences.recent] });
 const ready = ref(false);
-const currentId = ref('json');
+const workspace = useWorkspace();
+const currentId = workspace.toolId;
+const activeTab = workspace.active;
 const currentTool = computed(() => getTool(currentId.value) || tools[0]!);
-const aes = useAesWorkspace();
 const exitBlocked = ref(false);
-const secondaryInput = ref('');
-const regular = ref<Pick<AesTab, 'input' | 'action' | 'options' | 'result' | 'error' | 'stale' | 'elapsed' | 'outputView'>>({
-  input: '', action: 'format', options: {}, result: null, error: '', stale: false, elapsed: 0, outputView: 'text',
-});
-function activeField<K extends keyof typeof regular.value>(key: K) {
+function activeField<K extends keyof ToolTab>(key: K) {
   return computed({
-    get: () => currentId.value === 'aes' ? aes.active.value[key] : regular.value[key],
-    set: (value: (typeof regular.value)[K]) => {
-      const target: typeof regular.value = currentId.value === 'aes' ? aes.active.value : regular.value;
-      target[key] = value;
-    },
+    get: () => activeTab.value[key],
+    set: (value: ToolTab[K]) => { const target: ToolTab = activeTab.value; target[key] = value; },
   });
 }
 const input = activeField('input');
+const secondaryInput = activeField('secondaryInput');
 const action = activeField('action');
 const options = activeField('options');
 const result = activeField('result');
@@ -47,6 +43,9 @@ const error = activeField('error');
 const stale = activeField('stale');
 const elapsed = activeField('elapsed');
 const outputView = activeField('outputView');
+const binarySourceName = activeField('binarySourceName');
+const batch = activeField('batch');
+const batchVisible = activeField('batchVisible');
 const showOptions = ref(true);
 const sidebarCollapsed = ref(false);
 const paletteOpen = ref(false);
@@ -62,21 +61,10 @@ const updateState = ref<Awaited<ReturnType<typeof checkForUpdates>> | null>(null
 const updating = ref(false);
 const toast = ref<{ text: string; error: boolean } | null>(null);
 const dragOver = ref(false);
-const genericRunner = useToolRunner();
-const run = genericRunner.run;
-const running = computed(() => currentId.value === 'aes' ? aes.running.value : genericRunner.running.value);
-function cancel() {
-  if (currentId.value === 'aes') aes.stop();
-  else genericRunner.cancel();
-}
-const { busy: binaryBusy, runBinary, cancelBinary } = useBinaryRunner();
-const binarySourceName = ref('');
-const batch = ref<{ name: string; input: string; output?: string; error?: string; state: 'waiting' | 'running' | 'done' | 'error' }[]>([]);
-const batchRunning = ref(false);
-const batchVisible = ref(false);
-let batchEpoch = 0;
-let runEpoch = 0;
-let revision = 0;
+const running = workspace.running;
+const batchRunning = workspace.batchRunning;
+const binaryBusy = workspace.binaryBusy;
+function cancel() { workspace.stop(); }
 let initialized = false;
 let returnFocus: HTMLElement | null = null;
 let preferenceSequence = 0;
@@ -85,8 +73,6 @@ let toastTimer: ReturnType<typeof setTimeout>;
 const cleanup: (() => void)[] = [];
 const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const systemDark = ref(mediaQuery.matches);
-const drafts = new Map<string, { input: string; secondaryInput: string; action: string; options: Record<string, OptionValue>; result: ToolResult | null; stale: boolean }>();
-
 const activeTheme = computed(() => preferences.value.theme === 'system' ? (systemDark.value ? 'dark' : 'light') : preferences.value.theme);
 const favorites = computed(() => preferences.value.favorites.map(getTool).filter((tool): tool is ToolDefinition => !!tool));
 const recent = computed(() => preferences.value.recent.map(getTool).filter((tool): tool is ToolDefinition => !!tool));
@@ -125,8 +111,6 @@ const isFavorite = computed(() => preferences.value.favorites.includes(currentId
 watch(activeTheme, value => { document.documentElement.dataset.theme = value; }, { immediate: true });
 watch(paletteQuery, () => { paletteIndex.value = 0; });
 watch([paletteOpen, settingsOpen], ([palette, settings]) => { if (!palette && !settings) nextTick(() => returnFocus?.focus()); });
-watch([input, secondaryInput, action, options], () => { if (currentId.value === 'aes') return; revision++; if (result.value) stale.value = true; error.value = ''; }, { deep: true, flush: 'sync' });
-
 function notify(text: string, isError = false) {
   clearTimeout(toastTimer);
   toast.value = { text, error: isError };
@@ -164,31 +148,15 @@ function rememberTool(id: string) {
 function applyTool(id: string, remember = true) {
   const tool = getTool(id);
   if (!tool) return;
-  if (initialized && currentId.value !== 'aes') drafts.set(currentId.value, { input: input.value, secondaryInput: secondaryInput.value, action: action.value, options: { ...options.value }, result: result.value, stale: stale.value });
-  runEpoch++;
-  batchEpoch++;
-  genericRunner.cancel(); cancelBinary(); binarySourceName.value = '';
-  batchRunning.value = false;
-  batch.value = [];
-  batchVisible.value = false;
-  currentId.value = tool.id;
-  secondaryInput.value = '';
-  if (id !== 'aes') {
-    const draft = drafts.get(tool.id);
-    input.value = draft?.input || '';
-    secondaryInput.value = draft?.secondaryInput || '';
-    action.value = draft?.action || tool.defaultAction;
-    options.value = draft?.options || defaultOptions(tool);
-    result.value = draft?.result || null;
-    stale.value = draft?.stale || false;
-    error.value = '';
-    outputView.value = 'text';
-    elapsed.value = 0;
-  }
+  workspace.selectTool(id);
   paletteOpen.value = false;
   initialized = true;
   if (remember) rememberTool(tool.id);
-  document.title = `${tool.name} — My Tools`;
+  document.title = tool.name + ' — My Tools';
+}
+function restoredTool(id: string) {
+  applyTool(id);
+  if (location.hash !== '#/tools/' + id) location.hash = '/tools/' + id;
 }
 
 async function navigate(id: string) {
@@ -244,37 +212,9 @@ function setSample() {
   void processTool();
 }
 
-async function processTool() {
-  if (currentId.value === 'aes') { await aes.runActive(); return; }
-  if (batchRunning.value || binaryBusy.value) return;
-  if (result.value) stale.value = true;
-  if (inputBytes.value > 5 * 1024 * 1024 || new TextEncoder().encode(secondaryInput.value).byteLength > 5 * 1024 * 1024) {
-    error.value = '单次文本最大 5 MiB，请缩小输入。'; return;
-  }
-  const epoch = ++runEpoch;
-  const atRevision = revision;
-  const start = performance.now();
-  error.value = '';
-  try {
-    const value = await run({ toolId: currentId.value, action: action.value, input: input.value, secondaryInput: secondaryInput.value, options: { ...options.value } });
-    if (epoch !== runEpoch) return;
-    result.value = value;
-    stale.value = atRevision !== revision;
-    outputView.value = value.diff ? 'diff' : 'text';
-    elapsed.value = Math.max(1, Math.round(performance.now() - start));
-  } catch (reason) {
-    if (epoch !== runEpoch) return;
-    error.value = reason instanceof Error ? reason.message : '处理失败。';
-  }
-}
-
-function clearContent() {
-  if (currentId.value === 'aes') { aes.clearActive(); return; }
-  runEpoch++; batchEpoch++; cancel(); cancelBinary(); binarySourceName.value = ''; batchRunning.value = false;
-  input.value = ''; secondaryInput.value = ''; result.value = null;
-  error.value = ''; stale.value = false; batch.value = []; batchVisible.value = false;
-  drafts.delete(currentId.value);
-}
+async function processTool() { await workspace.runActive(); }
+function clearContent() { workspace.clearActive(); }
+function tabAlive(tab: ToolTab) { return workspace.state.value.tabs.some(t => t.id === tab.id); }
 
 async function guarded<T>(task: () => Promise<T>, success?: string): Promise<T | undefined> {
   try { const value = await task(); if (success) notify(success); return value; }
@@ -282,48 +222,38 @@ async function guarded<T>(task: () => Promise<T>, success?: string): Promise<T |
 }
 
 async function pasteInput() {
-  const tab = currentId.value === 'aes' ? aes.active.value : null;
-  const toolId = currentId.value;
+  const tab = activeTab.value;
   const text = await guarded(readClipboard);
-  if (text === undefined) return;
-  if (tab) { if (aes.state.value.tabs.some(t => t.id === tab.id)) { tab.input = text; tab.error = ''; if (tab.result) tab.stale = true; } }
-  else if (currentId.value === toolId) input.value = text;
+  if (text !== undefined && tabAlive(tab)) { tab.input = text; tab.error = ''; if (tab.result) tab.stale = true; }
 }
-
 async function encodeBinaryFile() {
-  const epoch = ++runEpoch;
-  const file = await guarded(openBinaryFile);
-  if (!file || epoch !== runEpoch) return;
+  const tab = activeTab.value;
+  const file = await guarded(() => openBinaryFile());
+  if (!file || !tabAlive(tab)) return;
   const start = performance.now();
-  error.value = '';
+  tab.error = '';
   try {
-    const encoded = await runBinary({ action: 'encode', bytes: Uint8Array.from(file.bytes), urlSafe: !!options.value.urlSafe, padding: !!options.value.padding });
-    if (epoch !== runEpoch) return;
-    input.value = '';
-    binarySourceName.value = file.name;
-    result.value = { output: encoded.output || '', summary: `${file.name} · ${byteLabel(file.bytes.length)} 已编码` };
-    stale.value = false;
-    outputView.value = 'text';
-    elapsed.value = Math.max(1, Math.round(performance.now() - start));
-    notify(`已编码 ${file.name}`);
-  } catch (reason) { if (epoch === runEpoch) error.value = reason instanceof Error ? reason.message : '文件编码失败。'; }
+    const encoded = await workspace.runBinary(tab, { action: 'encode', bytes: Uint8Array.from(file.bytes), urlSafe: !!tab.options.urlSafe, padding: !!tab.options.padding });
+    if (!encoded || !tabAlive(tab)) return;
+    tab.input = ''; tab.binarySourceName = file.name;
+    tab.outputView = 'text'; tab.elapsed = Math.max(1, Math.round(performance.now() - start));
+    workspace.recordResult(tab, { output: encoded.output || '', summary: file.name + ' · ' + byteLabel(file.bytes.length) + ' 已编码' });
+    notify('已编码 ' + file.name);
+  } catch (reason) { if (tabAlive(tab)) tab.error = reason instanceof Error ? reason.message : '文件编码失败。'; }
 }
-
 async function decodeBinaryFile() {
-  const epoch = ++runEpoch;
-  error.value = '';
-  if (!input.value.trim()) { error.value = '请先在输入区粘贴 Base64 内容。'; return; }
+  const tab = activeTab.value; tab.error = '';
+  if (!tab.input.trim()) { tab.error = '请先在输入区粘贴 Base64 内容。'; return; }
   try {
-    const decoded = await runBinary({ action: 'decode', input: input.value, urlSafe: !!options.value.urlSafe });
-    if (epoch !== runEpoch || !decoded.bytes) return;
+    const decoded = await workspace.runBinary(tab, { action: 'decode', input: tab.input, urlSafe: !!tab.options.urlSafe });
+    if (!decoded?.bytes || !tabAlive(tab)) return;
     const saved = await saveBinaryFile(Array.from(decoded.bytes), 'decoded.bin');
-    if (saved) notify(`已保存 ${byteLabel(decoded.bytes.length)} 的二进制文件。`);
-  } catch (reason) { if (epoch === runEpoch) error.value = reason instanceof Error ? reason.message : '文件解码失败。'; }
+    if (saved) { workspace.recordResult(tab, { output: '', summary: '已保存 ' + byteLabel(decoded.bytes.length) + ' 的二进制文件' }); notify('已保存二进制文件。'); }
+  } catch (reason) { if (tabAlive(tab)) tab.error = reason instanceof Error ? reason.message : '文件解码失败。'; }
 }
-
 async function copyOutput() {
-  if (!result.value) return;
-  await guarded(() => writeClipboard(result.value!.output), '结果已复制');
+  const output = result.value?.output;
+  if (output !== undefined) await guarded(() => writeClipboard(output), '结果已复制');
 }
 
 function swap() {
@@ -331,84 +261,72 @@ function swap() {
   else if (result.value) { const previous = input.value; input.value = result.value.output; result.value = { output: previous }; stale.value = true; }
 }
 
-function acceptFiles(files: ImportedFile[], asBatch = false) {
-  if (!files.length) return;
-  if (files.length > 20) { notify('一次最多处理 20 个文件。', true); return; }
-  if (files.some(file => new TextEncoder().encode(file.content).byteLength > 5 * 1024 * 1024)) { notify('单个文件最大 5 MiB。', true); return; }
-  if (files.reduce((size, file) => size + new TextEncoder().encode(file.content).byteLength, 0) > 20 * 1024 * 1024) { notify('批量文件合计最大 20 MiB。', true); return; }
+function acceptFiles(files: ImportedFile[], asBatch = false, tab = activeTab.value) {
+  if (!files.length || !tabAlive(tab)) return;
+  if (files.length > 20 || files.some(file => byteCount(file.content) > 5 * 1024 * 1024) || files.reduce((n, file) => n + byteCount(file.content), 0) > 20 * 1024 * 1024) { notify('最多 20 个文件，每个不超过 5 MiB，合计不超过 20 MiB。', true); return; }
   if (asBatch || files.length > 1) {
-    if (!currentTool.value.supportsBatch) { notify('当前工具需要成对输入，请分别导入内容。', true); return; }
-    batch.value = files.map(file => ({ name: file.name, input: file.content, state: 'waiting' }));
-    batchVisible.value = true;
+    if (!getTool(tab.toolId)?.supportsBatch) { notify('当前工具需要成对输入，请分别导入内容。', true); return; }
+    if (workspace.batchJobs.value.includes(tab.id)) { notify('请先停止当前标签的批量任务。', true); return; }
+    tab.batch = files.map(file => ({ name: file.name, input: file.content, state: 'waiting' }));
+    tab.batchVisible = true;
   } else {
-    input.value = files[0]!.content;
-    notify(`已导入 ${files[0]!.name}`);
+    tab.input = files[0]!.content; tab.error = ''; if(tab.result)tab.stale = true;
+    notify('已导入 ' + files[0]!.name);
   }
 }
-
 async function pasteSecondaryInput() {
-  const text = await guarded(readClipboard);
-  if (text !== undefined) secondaryInput.value = text;
+  const tab = activeTab.value, text = await guarded(readClipboard);
+  if (text !== undefined && tabAlive(tab)) {tab.secondaryInput = text; if(tab.result)tab.stale = true;}
 }
-
 async function importSecondaryFile() {
-  const files = await guarded(() => openTextFiles(false));
-  if (files?.[0]) secondaryInput.value = files[0].content;
+  const tab = activeTab.value, files = await guarded(() => openTextFiles(false));
+  if (files?.[0] && tabAlive(tab)) {tab.secondaryInput = files[0].content; if(tab.result)tab.stale = true;}
 }
-
 async function importFiles(asBatch = false) {
-  const tab = currentId.value === 'aes' ? aes.active.value : null;
-  const toolId = currentId.value;
-  const files = await guarded(() => openTextFiles(asBatch));
-  if (!files) return;
-  if (tab) {
-    if (files.length === 1 && aes.state.value.tabs.some(t => t.id === tab.id)) { tab.input = files[0]!.content; tab.error = ''; if (tab.result) tab.stale = true; }
-  } else if (currentId.value === toolId) acceptFiles(files, asBatch);
+  const tab = activeTab.value, files = await guarded(() => openTextFiles(asBatch));
+  if (files) acceptFiles(files, asBatch, tab);
 }
-
+function setSvgaFile(tab: ToolTab, file: BinaryFile) {
+  if (!tabAlive(tab)) return;
+  if (!/\.svga$/i.test(file.name) || !file.bytes.length || file.bytes.length > 5 * 1024 * 1024) { notify('请选择不超过 5 MiB 的非空 .svga 文件。', true); return; }
+  tab.result = null; tab.error = ''; tab.fileName = file.name;
+  tab.input = encodeBase64Bytes(Uint8Array.from(file.bytes)); tab.stale = false;
+}
+async function openSvgaFile() {
+  const tab = activeTab.value, file = await guarded(() => openBinaryFile('svga'));
+  if (file) setSvgaFile(tab, file);
+}
+function svgaLoaded(tab: ToolTab, value: ToolResult) {
+  if (tabAlive(tab) && (!tab.result || tab.result.output !== value.output)) workspace.recordResult(tab, value);
+}
 async function browserDrop(event: DragEvent) {
   dragOver.value = false;
   if (desktop) return;
-  const files = Array.from(event.dataTransfer?.files || []);
-  if (files.length > 20 || files.some(file => file.size > 5 * 1024 * 1024) || files.reduce((n, file) => n + file.size, 0) > 20 * 1024 * 1024) { notify('最多 20 个文件，每个不超过 5 MiB，合计不超过 20 MiB。', true); return; }
-  const imported = await guarded(() => readBrowserFiles(files));
-  if (imported) acceptFiles(imported);
-}
-
-async function runBatch() {
-  if (!batch.value.length || batchRunning.value) return;
-  runEpoch++; cancel();
-  const epoch = ++batchEpoch;
-  const toolId = currentId.value;
-  const runAction = action.value;
-  const runOptions = { ...options.value };
-  let totalOutputBytes = 0;
-  batchRunning.value = true;
-  for (const item of batch.value) { item.state = 'waiting'; item.output = undefined; item.error = undefined; }
-  for (const item of batch.value) {
-    if (epoch !== batchEpoch) break;
-    item.state = 'running';
-    try {
-      const value = await run({ toolId, action: runAction, input: item.input, options: runOptions });
-      if (epoch !== batchEpoch) break;
-      const bytes = byteCount(value.output);
-      if (totalOutputBytes + bytes > 20 * 1024 * 1024) throw new Error('本批次结果合计超过 20 MiB。请分成更小的批次。');
-      totalOutputBytes += bytes;
-      item.output = value.output;
-      item.state = 'done';
-    } catch (reason) {
-      if (epoch !== batchEpoch) break;
-      item.error = reason instanceof Error ? reason.message : '处理失败';
-      item.state = 'error';
-    }
+  const tab = activeTab.value, files = Array.from(event.dataTransfer?.files || []);
+  if (!files.length) return;
+  if (tab.toolId === 'svga') {
+    if (files.length !== 1 || files[0]!.size > 5 * 1024 * 1024) { notify('一次只预览一个不超过 5 MiB 的 SVGA 文件。', true); return; }
+    const file = files[0]!;
+    const bytes = await guarded(async () => Array.from(new Uint8Array(await file.arrayBuffer())));
+    if (bytes) setSvgaFile(tab, { name: file.name, bytes });
+    return;
   }
-  if (epoch === batchEpoch) { batchRunning.value = false; notify(`批量处理完成：${batchDone.value} 个成功，${batchErrors.value} 个失败。`); }
+  const imported = await guarded(() => readBrowserFiles(files));
+  if (imported) acceptFiles(imported, false, tab);
 }
-
-function cancelBatch() {
-  batchEpoch++; cancel(); batchRunning.value = false;
-  batch.value.forEach(item => { if (item.state === 'running') { item.state = 'error'; item.error = '已取消'; } });
+async function desktopDrop(paths: string[]) {
+  const tab = activeTab.value;
+  if (tab.toolId === 'svga') {
+    if (paths.length !== 1) { notify('一次只预览一个 SVGA 文件。', true); return; }
+    const file = await guarded(() => readDroppedBinaryFile(paths[0]!));
+    if (file) setSvgaFile(tab, file);
+  } else {
+    const files = await guarded(() => readDroppedFiles(paths));
+    if(files) acceptFiles(files, false, tab);
+  }
 }
+async function runBatch() { await workspace.runBatch(); }
+function cancelBatch() { workspace.stop(); }
 
 async function exportBatch() {
   const files = batch.value.filter(item => item.state === 'done').map((item, index) => ({ name: `${String(index + 1).padStart(2, '0')}-${item.name.replace(/\.[^.]+$/, '')}.result.${currentTool.value.extension || 'txt'}`, content: item.output || '' }));
@@ -460,11 +378,11 @@ async function doInstallUpdate() {
 
 function handleKeyboard(event: KeyboardEvent) {
   const command = event.metaKey || event.ctrlKey;
-  if (currentId.value === 'aes' && !launcher && !settingsOpen.value && !paletteOpen.value && command) {
+  if (!launcher && !settingsOpen.value && !paletteOpen.value && command) {
     const key = event.key.toLowerCase();
-    if (key === 't') { event.preventDefault(); if (event.shiftKey) aes.reopen(); else aes.create(); return; }
-    if (key === 'w') { event.preventDefault(); aes.close(aes.active.value.id); return; }
-    if (event.altKey && (key === 'arrowleft' || key === 'arrowright')) { event.preventDefault(); aes.moveSelection(key === 'arrowleft' ? -1 : 1); return; }
+    if (key === 't') { event.preventDefault(); if (event.shiftKey) workspace.reopen(); else workspace.create(); return; }
+    if (key === 'w') { event.preventDefault(); workspace.close(activeTab.value.id); return; }
+    if (event.altKey && (key === 'arrowleft' || key === 'arrowright')) { event.preventDefault(); workspace.moveSelection(key === 'arrowleft' ? -1 : 1); return; }
   }
   if (command && event.key.toLowerCase() === 'k') { event.preventDefault(); void openPalette(); return; }
   if (command && event.key === ',') { event.preventDefault(); void openSettings(); return; }
@@ -509,23 +427,22 @@ onMounted(async () => {
   const prefCleanup = await guarded(() => onPreferencesChanged(value => { preferences.value = value; }));
   if (prefCleanup) cleanup.push(prefCleanup);
   if (!launcher) {
-    await aes.initialize();
+    await workspace.initialize();
     const exitCleanup = await guarded(() => registerAesExit(async quit => {
-      const ok = await aes.flushLatest();
+      const ok = await workspace.flushLatest();
       if (!ok && quit) {
         exitBlocked.value = true;
-        if (desktop) await guarded(() => showMainWindow('aes'));
-        if (currentId.value !== 'aes') location.hash = '/tools/aes';
-        notify('AES 工作台保存失败。已取消退出；可重试保存或在 AES 设置中选择不保存退出。', true);
+        if (desktop) await guarded(() => showMainWindow(currentId.value));
+        notify('工作台保存失败。已取消退出；可重试保存或在工作台设置中选择不保存退出。', true);
       }
       return ok;
     }));
     if (exitCleanup) cleanup.push(exitCleanup);
-    const dropCleanup = await guarded(() => onFileDrop(files => acceptFiles(files), message => notify(message, true)));
+    const dropCleanup = await guarded(() => onRawFileDrop(paths => { void desktopDrop(paths); }));
     if (dropCleanup) cleanup.push(dropCleanup);
     const id = location.hash.replace(/^#\/?(?:tools\/)?/, '') || preferences.value.lastTool;
     applyTool(getTool(id)?.id || 'json');
-    if (currentId.value === 'json') setSample();
+    if (currentId.value === 'json' && !workspace.restored.value) setSample();
     ready.value = true;
   } else {
     const launcherCleanup = await guarded(() => onLauncherShown(() => { paletteQuery.value = ''; paletteIndex.value = 0; nextTick(() => paletteSearch.value?.focus()); }));
@@ -535,8 +452,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  aes.dispose();
-  runEpoch++; batchEpoch++; genericRunner.cancel(); cancelBinary(); clearTimeout(toastTimer);
+  workspace.dispose();
+  clearTimeout(toastTimer);
   window.removeEventListener('keydown', handleKeyboard);
   window.removeEventListener('hashchange', routeChanged);
   mediaQuery.removeEventListener('change', themeChanged);
@@ -564,7 +481,7 @@ onBeforeUnmount(() => {
         <section v-if="favorites.length" class="nav-group"><div class="nav-group-title"><Star :size="12" />我的收藏<span>{{ favorites.length }}</span></div><button v-for="tool in favorites" :key="tool.id" class="nav-item" :class="{ active: currentId === tool.id }" @click="navigate(tool.id)"><ToolIcon :id="tool.id" :size="17" /><span>{{ tool.name }}</span></button></section>
         <section v-for="category in categories" :key="category.id" class="nav-group"><div class="nav-group-title">{{ category.name }}</div><button v-for="tool in tools.filter(item => item.category === category.id)" :key="tool.id" class="nav-item" :class="{ active: currentId === tool.id }" :aria-current="currentId === tool.id ? 'page' : undefined" @click="navigate(tool.id)"><ToolIcon :id="tool.id" :size="17" /><span>{{ tool.name }}</span><span v-if="currentId === tool.id" class="active-dot"></span></button></section>
       </div>
-      <div class="sidebar-bottom"><button class="nav-item" @click="openSettings"><Settings2 :size="17" /><span>偏好设置</span><kbd>{{ modifier }} ,</kbd></button><div class="sidebar-meta"><span><span class="status-dot"></span>本地运行 · 内容不上传</span><span>v{{ status?.version || '0.5.0' }}</span></div></div>
+      <div class="sidebar-bottom"><button class="nav-item" @click="openSettings"><Settings2 :size="17" /><span>偏好设置</span><kbd>{{ modifier }} ,</kbd></button><div class="sidebar-meta"><span><span class="status-dot"></span>本地运行 · 内容不上传</span><span>v{{ status?.version || '0.6.0' }}</span></div></div>
     </aside>
 
     <main class="workspace">
@@ -572,10 +489,11 @@ onBeforeUnmount(() => {
       <div class="workspace-content">
         <section class="tool-heading"><div class="tool-heading-icon"><ToolIcon :id="currentId" :size="30" /></div><div class="tool-heading-copy"><div class="eyebrow">{{ categoryName }}<span>/</span>LOCAL UTILITY</div><h1>{{ currentTool.name }}</h1><p>{{ currentTool.description }}</p></div><button class="favorite-button" :class="{ starred: isFavorite }" :aria-label="isFavorite ? '取消收藏' : '收藏工具'" :aria-pressed="isFavorite" @click="toggleFavorite()"><Star :size="17" :fill="isFavorite ? 'currentColor' : 'none'" /><span>{{ isFavorite ? '已收藏' : '收藏工具' }}</span></button></section>
 
-        <section class="tool-workbench" :aria-label="currentTool.name">
-          <AesTabBar v-if="currentId === 'aes'" :workspace="aes" :exit-blocked="exitBlocked" @exit-without-saving="guarded(exitWithoutSavingAesWorkspace)" />
+        <section class="tool-workbench" :class="{ 'phone-workbench': currentId === 'phone' }" :aria-label="currentTool.name">
+          <WorkspaceBar :workspace="workspace" :exit-blocked="exitBlocked" @restore-tool="restoredTool" @exit-without-saving="guarded(exitWithoutSavingAesWorkspace)" />
+          <template v-if="currentId !== 'svga'">
           <div class="workbench-toolbar"><div class="action-tabs" aria-label="处理操作"><button v-for="item in currentTool.actions" :key="item.id" :class="{ selected: action === item.id }" :aria-pressed="action === item.id" @click="action = item.id">{{ item.label }}</button></div><div class="toolbar-end"><button v-if="currentTool.options.length" class="icon-button" :class="{ toggled: showOptions }" aria-label="展开或收起工具选项" :aria-expanded="showOptions" @click="showOptions = !showOptions"><SlidersHorizontal :size="17" /></button><button class="text-button" @click="setSample">填入示例<ArrowUpRight :size="14" /></button></div></div>
-          <div v-if="showOptions && currentTool.options.length" class="tool-options"><label v-for="option in visibleOptions" :key="option.key" class="tool-option" :class="{ 'checkbox-option': option.type === 'checkbox', 'wide-option': option.type === 'textarea' || option.key === 'pattern' || option.key === 'prefix' }"><template v-if="option.type === 'checkbox'"><input v-model="options[option.key]" type="checkbox" /><span>{{ option.label }}</span></template><template v-else><span>{{ option.label }}</span><select v-if="option.type === 'select'" v-model="options[option.key]" :aria-label="option.label"><option v-for="choice in option.choices" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select><textarea v-else-if="option.type === 'textarea'" :value="String(options[option.key] ?? '')" @input="options[option.key] = ($event.target as HTMLTextAreaElement).value" :aria-label="option.label" :title="option.description" rows="2" /><input v-else-if="option.type === 'number'" v-model.number="options[option.key]" type="number" :min="option.min" :max="option.max" :aria-label="option.label" /><input v-else v-model="options[option.key]" :type="['key', 'password', 'rawKey'].includes(option.key) ? 'password' : 'text'" :aria-label="option.label" :title="option.description" :placeholder="option.description || '留空'" autocomplete="off" spellcheck="false" /></template></label></div>
+          <div v-if="showOptions && currentTool.options.length" class="tool-options"><label v-for="option in visibleOptions" :key="option.key" class="tool-option" :class="{ 'checkbox-option': option.type === 'checkbox', 'wide-option': option.type === 'textarea' || option.key === 'pattern' || option.key === 'prefix' }"><template v-if="option.type === 'checkbox'"><input v-model="options[option.key]" type="checkbox" /><span>{{ option.label }}</span></template><template v-else><span>{{ option.label }}</span><PhoneCountrySelect v-if="currentId === 'phone' && option.key === 'country'" :key="activeTab.id" :model-value="String(options[option.key])" @update:model-value="options[option.key] = $event" /><select v-else-if="option.type === 'select'" v-model="options[option.key]" :aria-label="option.label"><option v-for="choice in option.choices" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select><textarea v-else-if="option.type === 'textarea'" :value="String(options[option.key] ?? '')" @input="options[option.key] = ($event.target as HTMLTextAreaElement).value" :aria-label="option.label" :title="option.description" rows="2" /><input v-else-if="option.type === 'number'" v-model.number="options[option.key]" type="number" :min="option.min" :max="option.max" :aria-label="option.label" /><input v-else v-model="options[option.key]" :type="['key', 'password', 'rawKey'].includes(option.key) ? 'password' : 'text'" :aria-label="option.label" :title="option.description" :placeholder="option.description || '留空'" autocomplete="off" spellcheck="false" /></template></label></div>
 
           <div v-if="currentId === 'aes'" class="binary-file-bar aes-mode-hint">
             <div><ShieldCheck :size="16" /><span v-if="options.profile !== 'advanced'">简单模式：随机 Salt / IV，保留与 v0.2.0 相同的 AES-256-GCM JSON 密文格式。</span><span v-else-if="options.cipherMode === 'GCM'">高级 GCM：同一 Key 下绝不能重复使用 IV；请每次加密生成新的随机 IV，并妥善保存。</span><span v-else-if="options.cipherMode === 'ECB'">Java ECB/PKCS5 兼容：无需 IV；ECB 泄露重复明文块，也不认证密文。</span><span v-else>高级 CBC：用于兼容旧系统；CBC 不认证密文完整性，建议新系统采用 GCM。</span></div>
@@ -598,9 +516,11 @@ onBeforeUnmount(() => {
           <div v-for="warning in result?.warnings || []" :key="warning" class="warning-banner"><CircleAlert :size="15" /><span>{{ warning }}</span></div>
 
           <div class="workbench-footer"><div class="footer-tools"><button class="text-button" @click="clearContent"><Trash2 :size="15" />清空</button><button class="text-button" :disabled="!result && !currentTool.secondaryInputLabel" @click="swap"><ArrowLeftRight :size="15" />交换</button><span class="toolbar-divider"></span><button class="text-button" :disabled="!result" @click="guarded(async () => { const saved = await saveTextFile(result!.output, `${currentId}-result.${currentTool.extension || 'txt'}`); if (saved) notify('结果已保存'); })"><Download :size="15" />导出结果</button></div><button v-if="running && !batchRunning" class="primary-button cancel-button" @click="cancel()"><Square :size="13" />停止处理</button><button v-else class="primary-button" :disabled="batchRunning || binaryBusy" @click="processTool"><Play :size="14" fill="currentColor" />{{ selectedAction?.label || '开始处理' }}<kbd>{{ modifier }} ↵</kbd></button></div>
+          </template>
+          <SvgaPreview v-else :key="activeTab.id" :tab="activeTab" @open="openSvgaFile" @clear="clearContent" @loaded="svgaLoaded" />
         </section>
 
-        <div class="under-workbench"><div class="privacy-note"><ShieldCheck :size="17" /><span v-if="currentId === 'aes'">仅在本机处理。保存范围由 AES 工作台设置控制，不会上传。</span><span v-else>数据留在你的设备上。输入内容不会保存，也不会上传。</span></div><button v-if="currentTool.supportsBatch" class="batch-link" @click="batch.length ? batchVisible = !batchVisible : importFiles(true)"><Files :size="16" />批量处理<span v-if="batch.length">{{ batch.length }}</span><ArrowRight :size="14" /></button></div>
+        <div class="under-workbench"><div class="privacy-note"><ShieldCheck :size="17" /><span>仅在本机处理；历史与保存范围由工作台设置控制，不会上传。</span></div><button v-if="currentTool.supportsBatch" class="batch-link" @click="batch.length ? batchVisible = !batchVisible : importFiles(true)"><Files :size="16" />批量处理<span v-if="batch.length">{{ batch.length }}</span><ArrowRight :size="14" /></button></div>
 
         <section v-if="batchVisible" class="batch-panel"><div class="batch-heading"><div><Files :size="19" /><strong>批量文件处理</strong><span>{{ batchDone }} 成功 · {{ batchErrors }} 失败</span></div><div><button class="text-button" :disabled="batchRunning" @click="importFiles(true)">重新选择</button><button class="text-button" :disabled="!batchDone || batchRunning" @click="exportBatch"><Download :size="14" />导出成功结果</button><button v-if="batchRunning" class="primary-button compact" @click="cancelBatch">停止</button><button v-else class="primary-button compact" @click="runBatch">开始处理</button></div></div><div v-for="item in batch" :key="item.name" class="batch-row"><LoaderCircle v-if="item.state === 'running'" :size="16" class="spin" /><CheckCircle2 v-else-if="item.state === 'done'" :size="16" class="success-text" /><CircleAlert v-else-if="item.state === 'error'" :size="16" class="error-text" /><Files v-else :size="16" /><span>{{ item.name }}</span><small>{{ item.error || (item.state === 'done' ? `${byteLabel(byteCount(item.output || ''))} · 已完成` : item.state === 'running' ? '处理中' : '等待处理') }}</small></div><p class="batch-note">使用当前操作与选项依次处理；每个文件单独出结果。导出不会覆盖原文件。</p></section>
 
@@ -615,7 +535,7 @@ onBeforeUnmount(() => {
 
   <div v-if="paletteOpen && !launcher" class="modal-backdrop" @mousedown.self="paletteOpen = false"><section class="dialog command-dialog" role="dialog" aria-modal="true" aria-label="搜索与切换工具"><div class="command-search"><Search :size="22" /><input ref="paletteSearch" v-model="paletteQuery" placeholder="搜索工具、功能或关键词…" aria-label="搜索工具" /><button class="key-button" aria-label="关闭工具搜索" @click="paletteOpen = false">esc</button></div><div class="command-section-title">{{ paletteQuery ? `${paletteTools.length} 个搜索结果` : '最近使用与全部工具' }}</div><div class="command-list" role="listbox" aria-label="工具搜索结果"><button v-for="(tool, index) in paletteTools" :key="tool.id" class="command-item" :class="{ selected: index === paletteIndex }" role="option" :aria-selected="index === paletteIndex" @mouseenter="paletteIndex = index" @click="navigate(tool.id)"><span class="tool-icon-tile small"><ToolIcon :id="tool.id" /></span><span><strong>{{ tool.name }}</strong><small>{{ tool.description }}</small></span><CornerDownLeft v-if="index === paletteIndex" :size="17" /><Star v-else-if="preferences.favorites.includes(tool.id)" :size="14" /></button><div v-if="!paletteTools.length" class="search-empty">没有找到工具，试试“编码”“时间”或“SQL”。</div></div><div class="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 打开工具</span><span><kbd>esc</kbd> 关闭</span></div></section></div>
 
-  <div v-if="settingsOpen" class="modal-backdrop" @mousedown.self="settingsOpen = false"><section class="dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="dialog-heading"><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="settings-title">偏好设置</h2></div><button class="icon-button close-dialog" aria-label="关闭偏好设置" @click="settingsOpen = false"><X :size="21" /></button></div><div class="settings-body"><section class="settings-section"><h3>外观</h3><p>选择一个让你工作更舒服的界面。</p><div class="theme-picker"><button :class="{ selected: preferences.theme === 'light' }" @click="persist({ theme: 'light' })"><Sun :size="20" />浅色<Check v-if="preferences.theme === 'light'" :size="15" /></button><button :class="{ selected: preferences.theme === 'dark' }" @click="persist({ theme: 'dark' })"><Moon :size="20" />深色<Check v-if="preferences.theme === 'dark'" :size="15" /></button><button :class="{ selected: preferences.theme === 'system' }" @click="persist({ theme: 'system' })"><Monitor :size="20" />跟随系统<Check v-if="preferences.theme === 'system'" :size="15" /></button></div></section><section class="settings-section"><h3>桌面与快捷键</h3><p v-if="!desktop">当前为界面预览。系统快捷键、托盘与原生窗口在安装版中使用。</p><label class="settings-field"><span>全局唤起快捷键</span><input v-model="shortcutDraft" aria-label="全局唤起快捷键" placeholder="CmdOrCtrl+Shift+Space" :disabled="!desktop" /><small>例如 CmdOrCtrl+Shift+Space；已被占用时会提示。</small></label><label class="settings-checkbox"><input v-model="closeToTrayDraft" type="checkbox" :disabled="!desktop" /><span>关闭窗口后保留在系统托盘 / 菜单栏</span></label><p v-if="status?.shortcutError" class="error-text">{{ status.shortcutError }}</p><p v-if="desktop && status && !status.trayAvailable" class="setting-warning">此环境没有可用托盘，关闭窗口将正常退出。</p><button class="secondary-button" :disabled="!desktop || settingsSaving" @click="saveDesktopSettings"><LoaderCircle v-if="settingsSaving" :size="15" class="spin" /><Check v-else :size="15" />保存桌面设置</button></section><section class="settings-section"><h3>本地数据</h3><p>仅保存主题、工具收藏、最近使用的工具名和桌面偏好。除明确开启 AES 完整会话加密保存的字段外，输入、输出、令牌、密钥与文件内容只在当前会话内存中。</p><button class="text-button" @click="persist({ recent: [] }).then(() => notify('最近使用记录已清空'))"><RotateCcw :size="14" />清空最近使用</button></section><section class="settings-section"><h3>版本与更新</h3><div class="version-card"><span class="tool-icon-tile"><PackageCheck :size="23" /></span><div><strong>My Tools {{ status?.version || '0.5.0' }}</strong><span>{{ desktop ? status?.platform || '桌面应用' : '界面预览' }}</span></div><span class="local-badge">LOCAL FIRST</span></div><p>{{ status?.updaterEnabled ? '更新检查由你手动触发，只接受已配置签名的更新。' : '当前构建未配置在线更新。可从仓库发布页下载新版本后覆盖安装。' }}</p><button v-if="status?.updaterEnabled" class="secondary-button" :disabled="updating" @click="checkUpdate"><LoaderCircle v-if="updating" :size="15" class="spin" /><Download v-else :size="15" />检查更新</button><div v-if="updateState" class="update-result"><p>{{ updateState.message }}</p><p v-if="updateState.notes" class="release-notes">{{ updateState.notes }}</p><button v-if="updateState.available" class="primary-button" :disabled="updating" @click="doInstallUpdate">安装 {{ updateState.version }}</button></div></section></div><div class="settings-footer"><ShieldCheck :size="16" />你的工具，你的数据，你的设备。</div></section></div>
+  <div v-if="settingsOpen" class="modal-backdrop" @mousedown.self="settingsOpen = false"><section class="dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="dialog-heading"><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="settings-title">偏好设置</h2></div><button class="icon-button close-dialog" aria-label="关闭偏好设置" @click="settingsOpen = false"><X :size="21" /></button></div><div class="settings-body"><section class="settings-section"><h3>外观</h3><p>选择一个让你工作更舒服的界面。</p><div class="theme-picker"><button :class="{ selected: preferences.theme === 'light' }" @click="persist({ theme: 'light' })"><Sun :size="20" />浅色<Check v-if="preferences.theme === 'light'" :size="15" /></button><button :class="{ selected: preferences.theme === 'dark' }" @click="persist({ theme: 'dark' })"><Moon :size="20" />深色<Check v-if="preferences.theme === 'dark'" :size="15" /></button><button :class="{ selected: preferences.theme === 'system' }" @click="persist({ theme: 'system' })"><Monitor :size="20" />跟随系统<Check v-if="preferences.theme === 'system'" :size="15" /></button></div></section><section class="settings-section"><h3>桌面与快捷键</h3><p v-if="!desktop">当前为界面预览。系统快捷键、托盘与原生窗口在安装版中使用。</p><label class="settings-field"><span>全局唤起快捷键</span><input v-model="shortcutDraft" aria-label="全局唤起快捷键" placeholder="CmdOrCtrl+Shift+Space" :disabled="!desktop" /><small>例如 CmdOrCtrl+Shift+Space；已被占用时会提示。</small></label><label class="settings-checkbox"><input v-model="closeToTrayDraft" type="checkbox" :disabled="!desktop" /><span>关闭窗口后保留在系统托盘 / 菜单栏</span></label><p v-if="status?.shortcutError" class="error-text">{{ status.shortcutError }}</p><p v-if="desktop && status && !status.trayAvailable" class="setting-warning">此环境没有可用托盘，关闭窗口将正常退出。</p><button class="secondary-button" :disabled="!desktop || settingsSaving" @click="saveDesktopSettings"><LoaderCircle v-if="settingsSaving" :size="15" class="spin" /><Check v-else :size="15" />保存桌面设置</button></section><section class="settings-section"><h3>本地数据</h3><p>仅保存主题、工具收藏、最近使用的工具名和桌面偏好。除明确开启工作台完整会话加密保存的字段外，输入、输出、令牌、密钥与文件内容只在当前会话内存中。</p><button class="text-button" @click="persist({ recent: [] }).then(() => notify('最近使用记录已清空'))"><RotateCcw :size="14" />清空最近使用</button></section><section class="settings-section"><h3>版本与更新</h3><div class="version-card"><span class="tool-icon-tile"><PackageCheck :size="23" /></span><div><strong>My Tools {{ status?.version || '0.6.0' }}</strong><span>{{ desktop ? status?.platform || '桌面应用' : '界面预览' }}</span></div><span class="local-badge">LOCAL FIRST</span></div><p>{{ status?.updaterEnabled ? '更新检查由你手动触发，只接受已配置签名的更新。' : '当前构建未配置在线更新。可从仓库发布页下载新版本后覆盖安装。' }}</p><button v-if="status?.updaterEnabled" class="secondary-button" :disabled="updating" @click="checkUpdate"><LoaderCircle v-if="updating" :size="15" class="spin" /><Download v-else :size="15" />检查更新</button><div v-if="updateState" class="update-result"><p>{{ updateState.message }}</p><p v-if="updateState.notes" class="release-notes">{{ updateState.notes }}</p><button v-if="updateState.available" class="primary-button" :disabled="updating" @click="doInstallUpdate">安装 {{ updateState.version }}</button></div></section></div><div class="settings-footer"><ShieldCheck :size="16" />你的工具，你的数据，你的设备。</div></section></div>
 
   <Transition name="toast"><div v-if="toast" class="toast-message" :class="{ 'is-error': toast.error }" role="status"><CircleAlert v-if="toast.error" :size="18" /><CheckCircle2 v-else :size="18" /><span>{{ toast.text }}</span><button class="icon-button" aria-label="关闭提示" @click="toast = null"><X :size="14" /></button></div></Transition>
 </template>

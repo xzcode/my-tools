@@ -9,6 +9,7 @@ fn main() {
             "save_text_file",
             "save_batch_files",
             "read_dropped_files",
+            "read_dropped_binary_file",
             "open_binary_file",
             "save_binary_file",
             "load_aes_workspace",

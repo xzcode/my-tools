@@ -105,19 +105,30 @@ fn read_files(paths: Vec<PathBuf>) -> Result<Vec<ImportedFile>, String> {
 pub async fn open_binary_file(
     app: AppHandle,
     window: WebviewWindow,
+    kind: Option<String>,
 ) -> Result<Option<BinaryFile>, String> {
     trusted(&window)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let Some(selected) = app
-            .dialog()
-            .file()
-            .set_parent(&window)
-            .set_title("选择需要 Base64 编码的文件（最多 5 MiB）")
-            .blocking_pick_file()
-        else {
+        let svga = kind.as_deref() == Some("svga");
+        let mut dialog = app.dialog().file().set_parent(&window).set_title(if svga {
+            "选择本地 SVGA 动画（最多 5 MiB）"
+        } else {
+            "选择需要 Base64 编码的文件（最多 5 MiB）"
+        });
+        if svga {
+            dialog = dialog.add_filter("SVGA 动画", &["svga"]);
+        }
+        let Some(selected) = dialog.blocking_pick_file() else {
             return Ok(None);
         };
         let path = selected.into_path().map_err(|e| e.to_string())?;
+        if svga
+            && !path
+                .extension()
+                .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("svga"))
+        {
+            return Err("请选择 .svga 文件".into());
+        }
         let bytes = read_bounded_file(&path)?;
         let name = path
             .file_name()
@@ -219,6 +230,45 @@ pub async fn read_dropped_files(
     tauri::async_runtime::spawn_blocking(move || read_files(requested))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn read_dropped_binary_file(
+    window: WebviewWindow,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<BinaryFile, String> {
+    trusted(&window)?;
+    let (allowed, when) = state
+        .drops
+        .lock()
+        .map_err(|_| "文件拖放状态暂不可用")?
+        .remove(window.label())
+        .ok_or("请先将文件拖入当前窗口")?;
+    let requested = PathBuf::from(path);
+    if when.elapsed() > Duration::from_secs(30)
+        || allowed.len() != 1
+        || !allowed.contains(&requested)
+    {
+        return Err("只能读取刚刚拖入当前窗口的单个文件".into());
+    }
+    if !requested
+        .extension()
+        .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("svga"))
+    {
+        return Err("请选择 .svga 文件".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = read_bounded_file(&requested)?;
+        let name = requested
+            .file_name()
+            .ok_or("无效的文件名")?
+            .to_string_lossy()
+            .to_string();
+        Ok(BinaryFile { name, bytes })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
