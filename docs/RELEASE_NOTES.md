@@ -1,11 +1,11 @@
-# My Tools 0.4.0
+# My Tools 0.5.0
 
-新增 Java AES/ECB/PKCS5Padding **旧系统兼容模式**，保留既有简单模式、GCM/CBC 高级模式及全部 18 项工具。
+AES 工作台新增独立多标签、密文前缀、参数模板、误关闭恢复及可选择的本地自动保存。
 
-- AES 高级模式新增 ECB：支持 AES-128/192/256、UTF-8/Hex/Base64 Key、PKCS5Padding/PKCS7 与 NoPadding，以及 Base64/Hex 密文。
-- ECB 不使用 IV。选择 ECB 后不展示、解析或校验 IV，也不显示生成随机 IV 按钮。
-- 新增「Java ECB/PKCS5」一键预设：高级模式、AES-256、Key UTF-8、PKCS7、UTF-8 明文、Base64 密文。与 Java SecretKeySpec(raw, "AES") 和 Cipher.getInstance("AES/ECB/PKCS5Padding") 的字节处理方式相匹配，前提是 Key 字节完全一致。
-- 不添加加密库：使用系统 Web Crypto AES-CBC 单块操作及 CBC 去链式处理实现 ECB 兼容，不手写 AES 分组算法。ECB 加密明文限 256 KiB。
-- ECB 不提供认证，会泄露重复明文块，仅供已有旧系统兼容。新系统继续推荐 GCM。
+- 同时打开最多 16 个 AES 工作台，支持重命名、拖动排序、复制非敏感配置、关闭其他/右侧、恢复最近关闭的 10 个标签及快捷键。独立 Worker 与结果归属按 Tab ID 隔离。
+- 密文前缀：加密完成并编码后直接拼接字面字符串，解密前从开头精确移除一次；不匹配拒绝解密。留空兼容旧版。支持 GCM/CBC/ECB/简单模式。
+- 内置 Java ECB/CBC、AES-GCM 参数模板及最多 30 个自定义非敏感模板。
+- 默认仅保存标签和算法配置；显式确认后可加密保存选中的 Key、IV、AAD、前缀、输入、输出。桌面密钥位于 OS 凭据库，AES-256-GCM 加密存档采用原子替换。Linux 完整保存需要可用 Secret Service；不会回退到明文。正常退出刷新，闪退可能丢失最后尚未落盘的修改。
+- 保留原有 18 项工具、Java ECB 无 IV 预设、全部旧密文格式与安全警告；此版本不要求用户修改 Java 项目。
 
-三平台构建与验收以 GitHub Actions 运行结果为准；Mac 未经 Apple 公证，Windows 未商业签名，在线更新默认关闭。
+源码、原生构建及安装包以相应 GitHub Actions 的实际结果为准。macOS 默认 ad-hoc 签名，Windows 未商业签名，在线更新默认关闭。

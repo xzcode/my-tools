@@ -1,9 +1,13 @@
 # My Tools · M1–M5 与后续增量交接
 
-日期：2026-11-20（Asia/Kuala_Lumpur）。**当前版本：0.4.0**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-20（Asia/Kuala_Lumpur）。**当前版本：0.5.0（待本次三平台构建确认）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
 
 
 
+
+## v0.5.0 · AES 多标签、密文前缀及会话恢复
+
+本轮新增 AES 多标签、模板、可选完整加密会话保存和精确的字面量密文前缀。保留 v0.4.0 算法兼容性，前缀留空时行为不变。核心状态与保存策略见 src/core/aes-workspace.ts；Worker 分配、标签管理及保存队列见 src/composables/useAesWorkspace.ts；原生存档和系统凭据见 src-tauri/src/aes_workspace.rs。浏览器预览的 IndexedDB 存储不是桌面凭据库，不用于真实敏感数据。默认仅保存非敏感配置，完整模式必须用户明确确认，系统凭据不可用时禁止明文降级。存档上限 4 MiB、打开上限 16、关闭历史 10、自定义模板 30。正常退出刷新；强制终止或断电可能丢失尚未落盘的最后修改。真实设备的系统凭据交互与签名安装仍需人工验收。
 
 ## v0.4.0 · Java AES/ECB/PKCS5Padding 旧系统兼容
 

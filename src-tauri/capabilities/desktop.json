@@ -2,15 +2,33 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop",
   "description": "Only the bundled workspace can call file, clipboard and update commands. No shell, generic filesystem, or remote URL permissions.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
-    "core:event:allow-listen", "core:event:allow-unlisten",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "core:window:allow-start-dragging",
-    "allow-read-clipboard", "allow-write-clipboard",
-    "allow-open-text-files", "allow-save-text-file", "allow-save-batch-files", "allow-read-dropped-files",
-    "allow-open-binary-file", "allow-save-binary-file",
-    "allow-load-preferences", "allow-save-preferences",
-    "allow-show-main-window", "allow-show-launcher", "allow-hide-current-window",
-    "allow-get-desktop-status", "allow-check-for-updates", "allow-install-update"
+    "allow-read-clipboard",
+    "allow-write-clipboard",
+    "allow-open-text-files",
+    "allow-save-text-file",
+    "allow-save-batch-files",
+    "allow-read-dropped-files",
+    "allow-open-binary-file",
+    "allow-save-binary-file",
+    "allow-load-preferences",
+    "allow-save-preferences",
+    "allow-show-main-window",
+    "allow-show-launcher",
+    "allow-hide-current-window",
+    "allow-get-desktop-status",
+    "allow-check-for-updates",
+    "allow-install-update",
+    "allow-load-aes-workspace",
+    "allow-save-aes-workspace",
+    "allow-clear-aes-workspace",
+    "allow-enable-aes-workspace-exit-guard",
+    "allow-finish-aes-workspace-exit"
   ]
 }

@@ -52,7 +52,8 @@ export const tools: ToolDefinition[] = [
   { id: 'aes', name: 'AES 加解密', description: '简单模式认证加密；高级模式支持 GCM/CBC 和 Java ECB/PKCS5Padding 兼容。', category: 'encoding', icon: 'lock', keywords: ['aes', 'gcm', 'cbc', 'ecb', 'java', 'pkcs5padding', 'pkcs7', 'key', 'iv', '加密', '解密', '口令', '密文'], sampleInput: '你好，My Tools 👋\n需要加密的私密文字',
     options: [
       select('profile', 'AES 工作模式', [['simple', '简单模式 · 随机盐 / IV'], ['advanced', '高级模式 · 原始 Key / IV']]),
-      text('password', '加密口令', '', '简单模式：至少 8 字符，建议更长；不会持久化'),
+      text('prefix', '密文前缀', '', '加密后原样拼接；解密前精确匹配并移除一次，留空不处理'),
+      text('password', '加密口令', '', '至少 8 字符；默认不保存，完整会话保存需明确开启'),
       select('cipherMode', '加密模式', [['GCM', 'GCM（推荐，认证加密）'], ['CBC', 'CBC（兼容旧系统，不认证）'], ['ECB', 'ECB（Java 旧系统兼容，无 IV）']]),
       select('keySize', '密钥长度', [['256', 'AES-256'], ['192', 'AES-192'], ['128', 'AES-128']]),
       select('keyEncoding', 'Key 编码', [['hex', 'Hex'], ['utf8', 'UTF-8'], ['base64', 'Base64']]),

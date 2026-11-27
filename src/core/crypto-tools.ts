@@ -104,9 +104,21 @@ async function processSimpleAes(request: ToolRequest): Promise<ToolResult> {
 }
 
 export async function processAes(request: ToolRequest): Promise<ToolResult> {
-  return optionText(request.options, 'profile') === 'advanced'
-    ? processAdvancedAes(request)
-    : processSimpleAes(request);
+  const prefix = optionText(request.options, 'prefix');
+  if (prefix.length > 4096) throw new Error('密文前缀最多 4096 个字符。');
+  let source = request;
+  if (request.action === 'decrypt' && prefix) {
+    if (!request.input.startsWith(prefix)) throw new Error('密文前缀不匹配，请检查当前 Tab 的前缀配置。');
+    source = { ...request, input: request.input.slice(prefix.length) };
+  }
+  const result = await (optionText(source.options, 'profile') === 'advanced'
+    ? processAdvancedAes(source)
+    : processSimpleAes(source));
+  if (request.action === 'encrypt' && prefix) {
+    // Prefix is an external text wrapper, not part of the ciphertext or GCM AAD.
+    return { ...result, output: prefix + result.output, kind: 'text' };
+  }
+  return result;
 }
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz';

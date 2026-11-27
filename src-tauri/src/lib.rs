@@ -1,3 +1,4 @@
+mod aes_workspace;
 mod files;
 mod preferences;
 mod updater;
@@ -91,6 +92,8 @@ fn tool_name(id: &str) -> &str {
         "url" => "URL 工具",
         "timestamp" => "时间戳转换",
         "uuid" => "UUID 与随机字符串",
+        "aes" => "AES 加解密",
+        "password" => "强密码生成器",
         "hash" => "哈希与 HMAC",
         "jwt" => "JWT 解析",
         "sql" => "SQL 格式化",
@@ -358,7 +361,8 @@ pub fn run() {
                 .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
                 .build(),
         )
-        .manage(AppState::default());
+        .manage(AppState::default())
+        .manage(aes_workspace::WorkspaceStore::default());
     #[cfg(feature = "updater")]
     let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -452,6 +456,7 @@ pub fn run() {
                         && state.prefs.lock().map(|p| p.close_to_tray).unwrap_or(false)
                     {
                         api.prevent_close();
+                        aes_workspace::flush_hidden(app);
                         let _ = window.hide();
                     } else {
                         app.exit(0);
@@ -471,6 +476,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_clipboard,
             write_clipboard,
+            aes_workspace::load_aes_workspace,
+            aes_workspace::save_aes_workspace,
+            aes_workspace::clear_aes_workspace,
+            aes_workspace::enable_aes_workspace_exit_guard,
+            aes_workspace::finish_aes_workspace_exit,
             files::open_text_files,
             files::save_text_file,
             files::save_batch_files,
@@ -490,6 +500,9 @@ pub fn run() {
         .expect("My Tools desktop failed to start");
 
     app.run(|app, event| {
+        if let tauri::RunEvent::ExitRequested { api, .. } = &event {
+            aes_workspace::intercept_exit(app, api);
+        }
         #[cfg(target_os = "macos")]
         if let tauri::RunEvent::Reopen { .. } = event {
             let _ = reveal_main(app, None);

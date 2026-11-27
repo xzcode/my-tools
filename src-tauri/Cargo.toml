@@ -1,6 +1,6 @@
 [package]
 name = "my-tools"
-version = "0.4.0"
+version = "0.5.0"
 description = "Offline developer toolbox"
 authors = ["Jojo"]
 license = "MIT"
@@ -29,6 +29,9 @@ tauri-plugin-updater = { version = "2", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
+aes-gcm = "0.10"
+getrandom = "0.3"
+keyring = { version = "=3.6.3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
 [profile.release]
 lto = true

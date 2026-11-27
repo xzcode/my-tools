@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-aes-workspace"
+description = "Enables the save_aes_workspace command without any pre-configured scope."
+commands.allow = ["save_aes_workspace"]
+
+[[permission]]
+identifier = "deny-save-aes-workspace"
+description = "Denies the save_aes_workspace command without any pre-configured scope."
+commands.deny = ["save_aes_workspace"]
