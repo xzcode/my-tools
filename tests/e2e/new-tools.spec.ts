@@ -52,3 +52,24 @@ for(const [version,fixture] of [['1.x',legacySvga],['2.x',modernSvga]] as const)
   await page.getByRole('button',{name:'下一帧'}).click();await expect(page.locator('.frame-label')).toHaveText('2 / 2 帧');
  });
 }
+test('one hundred tabs can be opened, jumped to, saved and restored',async({page})=>{
+ await open(page,'aes');
+ // Use the same UI shortcut a desktop user uses, then verify the real tab bar.
+ const add=page.getByRole('button',{name:'新建 AES 标签',exact:true});
+ for(let n=1;n<100;n++) await page.keyboard.press('Control+t');
+ const tabs=page.getByRole('tablist',{name:'工具标签页'}).getByRole('tab');
+ await expect(tabs).toHaveCount(100);
+ await expect(add).toBeDisabled();
+ const jump=page.getByLabel('快速切换标签');
+ await jump.selectOption({label:'AES 1'});
+ await expect(tabs.first()).toHaveAttribute('aria-selected','true');
+ await jump.selectOption({label:'AES 100'});
+ await expect(tabs.last()).toHaveAttribute('aria-selected','true');
+ await page.locator('.aes-save-status').click();
+ await page.getByRole('button',{name:'立即保存',exact:true}).click();
+ await expect(page.locator('.aes-save-status')).toContainText('已保存');
+ await page.reload();
+ await expect(tabs).toHaveCount(100);
+ await expect(tabs.last()).toHaveAttribute('aria-selected','true');
+ await expect(add).toBeDisabled();
+});

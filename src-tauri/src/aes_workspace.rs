@@ -192,6 +192,8 @@ fn metadata_safe(data: &Value) -> bool {
             })
     })
 }
+const TOOL_TAB_LIMIT: usize = 100;
+
 fn metadata_safe_v2(data: &Value) -> bool {
     let Ok(schema) = serde_json::from_str::<Value>(include_str!("workspace_options.json")) else {
         return false;
@@ -294,9 +296,20 @@ fn metadata_safe_v2(data: &Value) -> bool {
     }) && data["activeIds"]
         .as_object()
         .is_some_and(|o| o.iter().all(|(k, v)| schema.get(k).is_some() && id(v)))
-        && data["tabs"]
-            .as_array()
-            .is_some_and(|a| a.len() <= 96 && a.iter().all(|v| tab(v, &schema)))
+        && data["tabs"].as_array().is_some_and(|a| {
+            let mut counts = std::collections::HashMap::<&str, usize>::new();
+            a.iter().all(|v| {
+                if !tab(v, &schema) {
+                    return false;
+                }
+                let Some(tool) = v["toolId"].as_str() else {
+                    return false;
+                };
+                let count = counts.entry(tool).or_default();
+                *count += 1;
+                *count <= TOOL_TAB_LIMIT
+            })
+        })
         && data["history"].as_array().is_some_and(|a| {
             a.len() <= 200
                 && a.iter().all(|v| {
@@ -571,6 +584,21 @@ mod tests {
         let mut tab = v["tabs"][0].clone();
         tab["input"] = serde_json::json!("private");
         v["history"] = serde_json::json!([{"id":"h1","at":100,"type":"closed","tab":tab}]);
+        assert!(validate(&v.to_string()).is_err());
+    }
+    #[test]
+    fn supports_one_hundred_tabs_per_tool_without_shared_quota() {
+        let mut v = serde_json::json!({"version":2,"mode":"config","fields":{"key":true,"iv":true,"aad":true,"prefix":true,"input":true,"output":true},"activeIds":{},"tabs":[],"history":[],"templates":[]});
+        let tabs = v["tabs"].as_array_mut().unwrap();
+        for (tool, action) in [("json", "format"), ("aes", "encrypt")] {
+            for n in 0..100 {
+                tabs.push(serde_json::json!({"id":format!("{tool}-{n}"),"toolId":tool,"name":format!("{tool} {n}"),"action":action,"input":"","secondaryInput":"","options":{},"result":null,"error":"","stale":false,"elapsed":0,"outputView":"text","fileName":"","binarySourceName":"","batch":[],"batchVisible":false}));
+            }
+        }
+        assert_eq!(validate(&v.to_string()), Ok(false));
+        let mut extra = v["tabs"][0].clone();
+        extra["id"] = serde_json::json!("json-extra");
+        v["tabs"].as_array_mut().unwrap().push(extra);
         assert!(validate(&v.to_string()).is_err());
     }
 }

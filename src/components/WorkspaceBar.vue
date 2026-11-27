@@ -3,12 +3,22 @@ import { computed, nextTick, ref, watch } from 'vue';
 import type { useWorkspace } from '../composables/useWorkspace';
 import { getTool } from '../core/catalog';
 import type { SaveMode, SecretField } from '../core/workspace';
-import { OPEN_LIMIT, TOTAL_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT } from '../core/workspace';
+import { OPEN_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT } from '../core/workspace';
 import { isDesktop } from '../platform/desktop';
 
 const props = defineProps<{ workspace: ReturnType<typeof useWorkspace>; exitBlocked?: boolean }>();
 const emit = defineEmits<{ (e: 'exit-without-saving'): void; (e: 'restore-tool', id: string): void }>();
 const { state, active, tabs, closed, toolId, jobs, batchJobs, binaryJobs, templates, saveStatus, saveError, blocked } = props.workspace;
+const tabStrip = ref<HTMLElement>();
+watch(() => active.value?.id, async () => {
+  await nextTick();
+  const strip = tabStrip.value;
+  const selected = strip?.querySelector<HTMLElement>('.aes-tab.active');
+  if (!strip || !selected) return;
+  const view = strip.getBoundingClientRect(), rect = selected.getBoundingClientRect();
+  if (rect.left < view.left) strip.scrollLeft += rect.left - view.left;
+  else if (rect.right > view.right) strip.scrollLeft += rect.right - view.right;
+}, { flush: 'post', immediate: true });
 const settings = ref(false);
 const menuId = ref('');
 const renameDraft = ref('');
@@ -69,7 +79,7 @@ const statusLabel = computed(() => {
   return saveStatus.value === 'saved' ? '已保存' : '自动保存';
 });
 watch(() => props.exitBlocked, value => { if (value) settings.value = true; }, { immediate: true });
-function create() { if (!props.workspace.create()) notice.value = '每个工具最多 ' + OPEN_LIMIT + ' 个标签，总计最多 ' + TOTAL_LIMIT + ' 个。'; }
+function create() { if (!props.workspace.create()) notice.value = '当前工具最多打开 ' + OPEN_LIMIT + ' 个标签。'; }
 async function openMenu(id: string) {
   menuId.value = id;
   renameDraft.value = state.value.tabs.find(t => t.id === id)?.name ?? '';
@@ -131,7 +141,7 @@ function deleteTemplate() {
 <template>
   <div class="aes-tabs-shell" aria-label="多标签工作台">
     <div class="aes-tab-toolbar">
-      <div class="aes-tabs" role="tablist" aria-label="工具标签页">
+      <div ref="tabStrip" class="aes-tabs" role="tablist" aria-label="工具标签页">
         <div v-for="tab in tabs" :key="tab.id" class="aes-tab"
           :class="{ active: active.id === tab.id }"
           draggable="true" @dragstart.stop="dragged = tab.id" @dragend.stop="dragged = ''"
@@ -146,7 +156,10 @@ function deleteTemplate() {
             @click.stop="workspace.close(tab.id)">×</button>
         </div>
       </div>
-      <button type="button" class="icon-button aes-add-tab" title="新建标签 (Ctrl/Cmd+T)" :aria-label="toolId === 'aes' ? '新建 AES 标签' : '新建标签'" :disabled="!workspace.canCreate()" @click="create">＋</button>
+      <select v-if="tabs.length > 8" class="tab-jump" :value="active.id" aria-label="快速切换标签" :title="'当前 ' + tabs.length + ' / ' + OPEN_LIMIT + ' 个标签'" @change="workspace.select(($event.target as HTMLSelectElement).value)">
+        <option v-for="tab in tabs" :key="tab.id" :value="tab.id">{{ tab.name }}</option>
+      </select>
+      <button type="button" class="icon-button aes-add-tab" :title="tabs.length + ' / ' + OPEN_LIMIT + ' 个标签 · Ctrl/Cmd+T 新建'" :aria-label="toolId === 'aes' ? '新建 AES 标签' : '新建标签'" :disabled="!workspace.canCreate()" @click="create">＋</button>
       <button type="button" class="small-action" title="恢复最近关闭 (Ctrl/Cmd+Shift+T)" :disabled="!closed.length || !workspace.canCreate()" @click="quickReopen">恢复关闭<span v-if="closed.length"> ({{ closed.length }})</span></button>
       <button type="button" class="small-action" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">历史记录</button>
       <button type="button" class="icon-button" title="标签管理" aria-label="标签管理" @click="openMenu(active.id)">···</button>
@@ -248,6 +261,7 @@ function deleteTemplate() {
 .aes-tab > button[role=tab] > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aes-tab-close { padding: 4px 9px; color: var(--muted); font-size: 17px; }
 .aes-tab-close:hover { color: var(--danger); }
+.tab-jump { flex-shrink: 0; width: 118px; max-width: 18%; min-height: 30px; font-size: 12px; border: 1px solid var(--border); background: var(--input); color: var(--text); border-radius: 5px; }
 .aes-add-tab { font-size: 19px; flex-shrink: 0; }
 .aes-tab-toolbar > .small-action { white-space: nowrap; flex-shrink: 0; }
 .aes-save-status { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }

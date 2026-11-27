@@ -1,6 +1,6 @@
-import { computed, ref, watch } from 'vue';
-import { getTool, tools } from '../core/catalog';
-import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, OPEN_LIMIT, TOTAL_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT, SESSION_MAX_BYTES, builtInTemplates } from '../core/workspace';
+import { computed, nextTick, ref, watch } from 'vue';
+import { getTool } from '../core/catalog';
+import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, OPEN_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT, SESSION_MAX_BYTES, builtInTemplates } from '../core/workspace';
 import type { ToolTab, HistoryEntry, SaveMode } from '../core/workspace';
 import type { ToolResult, ToolRequest } from '../core/types';
 import { useToolRunner } from './useToolRunner';
@@ -26,7 +26,7 @@ export function useWorkspace() {
   function selectTool(id:string) {
     if(!getTool(id)) return;
     if(!state.value.tabs.some(t=>t.toolId===id)) {
-      // Reserve at least one tab for every catalog tool; TOTAL_LIMIT is a guard on manual creation.
+      // Each tool gets its own independent tab allowance.
       const t=newToolTab(id);state.value.tabs.push(t);state.value.activeIds[id]=t.id;
     }
     toolId.value=id;
@@ -44,12 +44,15 @@ export function useWorkspace() {
     if(!ready.value||paused||blocked.value)return;
     revision++;saveStatus.value='pending';clearTimeout(timer);timer=setTimeout(()=>{void flush();},500);
   }
-  watch(state,schedule,{deep:true,flush:'sync'});
+  // Coalesce deep traversal across synchronous edits, including close-many operations.
+  watch(state,schedule,{deep:true,flush:'pre'});
   watch([()=>active.value?.id,()=>active.value?.input,()=>active.value?.secondaryInput,()=>active.value?.action,()=>active.value?.options],([id],[old])=>{
     if(!active.value||id!==old)return;
     if(active.value.result)active.value.stale=true;active.value.error='';
   },{deep:true,flush:'sync'});
   async function flush():Promise<boolean>{
+    // Observe all pending edits before deciding if the previous snapshot is current.
+    await nextTick();
     clearTimeout(timer);
     if(!ready.value||paused)return true;
     if(blocked.value)return false;
@@ -63,17 +66,17 @@ export function useWorkspace() {
     catch(e){saveStatus.value='error';saveError.value=e instanceof Error?e.message:String(e);return false;}
   }
   async function flushLatest(){
-    for(let i=0;i<4;i++){const at=revision;if(!await flush())return false;if(at===revision)return true;}
+    for(let i=0;i<4;i++){await nextTick();const at=revision;if(!await flush())return false;await nextTick();if(at===revision)return true;}
     saveStatus.value='error';saveError.value='工作台仍在变化，请停止任务后重试。';return false;
   }
   async function setMode(mode:SaveMode){
     if(blocked.value)return false;
     const previous=state.value.mode;state.value.mode=mode;
     if(await flushLatest())return true;
-    state.value.mode=previous;clearTimeout(timer);saveStatus.value='error';return false;
+    state.value.mode=previous;await nextTick();clearTimeout(timer);saveStatus.value='error';return false;
   }
   function select(id:string){const t=state.value.tabs.find(t=>t.id===id);if(t){state.value.activeIds[t.toolId]=id;toolId.value=t.toolId;}}
-  function canCreate(id=toolId.value){const existing=new Set(state.value.tabs.map(t=>t.toolId));const reserved=tools.length-existing.size-(existing.has(id)?0:1);return state.value.tabs.filter(t=>t.toolId===id).length<OPEN_LIMIT&&state.value.tabs.length<TOTAL_LIMIT-reserved;}
+  function canCreate(id=toolId.value){return !!getTool(id)&&state.value.tabs.filter(t=>t.toolId===id).length<OPEN_LIMIT;}
   function create(){
     if(!canCreate())return false;
     let n=1;while(tabs.value.some(t=>t.name===tabName(toolId.value,n)))n++;
@@ -176,7 +179,7 @@ export function useWorkspace() {
   async function erase(){
     paused=true;clearTimeout(timer);await queue.catch(()=>undefined);
     try{const warning=await clearAesWorkspace();for(const t of state.value.tabs)stop(t.id);runners.clear();binaryRunners.clear();tokens.clear();const fresh=newWorkspace();if(toolId.value!=='json'){const t=newToolTab(toolId.value);fresh.tabs.push(t);fresh.activeIds[t.toolId]=t.id;}state.value=fresh;blocked.value=false;lastSaved=-1;saveStatus.value=warning?'error':'idle';saveError.value=warning??'';return true;}
-    catch(e){saveStatus.value='error';saveError.value=e instanceof Error?e.message:String(e);return false;}finally{paused=false;}
+    catch(e){saveStatus.value='error';saveError.value=e instanceof Error?e.message:String(e);return false;}finally{await nextTick();paused=false;}
   }
   function dispose(){paused=true;clearTimeout(timer);for(const t of state.value.tabs)stop(t.id);runners.clear();binaryRunners.clear();}
   return {state,toolId,tabs,active,running,batchRunning,binaryBusy,closed,templates,jobs,batchJobs,binaryJobs,ready,restored,blocked,saveStatus,saveError,

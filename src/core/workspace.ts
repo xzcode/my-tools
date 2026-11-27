@@ -1,10 +1,10 @@
-import { defaultOptions, getTool } from './catalog';
+import { defaultOptions, getTool, tools } from './catalog';
 import type { OptionValue, ToolResult } from './types';
 import { initialWorkspace as oldInitial, restoreWorkspace as restoreLegacy, configOptions as aesConfig, builtInTemplates } from './aes-workspace';
 import type { AesTab, AesTemplate, SaveMode, SaveFields, SecretField } from './aes-workspace';
 export { builtInTemplates };
 export type { SaveMode, SecretField };
-export const OPEN_LIMIT = 16, TOTAL_LIMIT = 96, HISTORY_LIMIT = 200, TEMPLATE_LIMIT = 30, SESSION_MAX_BYTES = 32 * 1024 * 1024;
+export const OPEN_LIMIT = 100, TOTAL_LIMIT = tools.length * OPEN_LIMIT, HISTORY_LIMIT = 200, TEMPLATE_LIMIT = 30, SESSION_MAX_BYTES = 32 * 1024 * 1024;
 export type BatchItem = { name: string; input: string; output?: string; error?: string; state: 'waiting' | 'running' | 'done' | 'error' };
 export interface ToolTab extends AesTab {
   toolId: string; secondaryInput: string; fileName: string; binarySourceName: string;

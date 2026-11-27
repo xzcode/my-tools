@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { defaultOptions, getTool, tools } from '../src/core/catalog';
-import { duplicateTab, historyBefore, newToolTab, newWorkspace, restoreUnifiedWorkspace, snapshotWorkspace } from '../src/core/workspace';
+import { duplicateTab, historyBefore, newToolTab, newWorkspace, restoreUnifiedWorkspace, snapshotWorkspace, OPEN_LIMIT } from '../src/core/workspace';
+import { useWorkspace } from '../src/composables/useWorkspace';
 import { initialWorkspace } from '../src/core/aes-workspace';
 import { phoneCountries, inspectPhone, processPhone } from '../src/core/phone';
 import { prepareSvga, validateSvgaMetadata, SVGA_FILE_LIMIT } from '../src/core/svga';
@@ -11,6 +12,31 @@ describe('unified workspace',()=>{
  it('provides independent tabs for all twenty tools',()=>{
    expect(tools).toHaveLength(20);
    for(const tool of tools){const a=newToolTab(tool.id),b=newToolTab(tool.id);a.input='secret';expect(a.id).not.toBe(b.id);expect(b.input).toBe('');expect(b.options).toEqual(defaultOptions(tool));}
+ });
+ it('allows 100 tabs independently for each tool and restores every tab',()=>{
+   const ws=useWorkspace();
+   try {
+     for(const toolId of ['json','aes']){
+       ws.selectTool(toolId);
+       for(let n=1;n<OPEN_LIMIT;n++)expect(ws.create()).toBe(true);
+       expect(ws.tabs.value).toHaveLength(100);
+       expect(ws.create()).toBe(false);
+       ws.active.value.input=toolId+' fixture';
+     }
+     expect(ws.state.value.tabs).toHaveLength(200);
+     ws.state.value.mode='full';
+     const restored=restoreUnifiedWorkspace(JSON.stringify(snapshotWorkspace(ws.state.value)));
+     expect(restored.tabs).toHaveLength(200);
+     for(const id of ['json','aes'])expect(restored.tabs.find(t=>t.id===restored.activeIds[id])?.input).toBe(id+' fixture');
+     const excess=newToolTab('aes');
+     restored.tabs.push(excess);
+     expect(()=>restoreUnifiedWorkspace(JSON.stringify(restored))).toThrow('标签数量超限');
+     ws.close(ws.active.value.id);
+     expect(ws.tabs.value).toHaveLength(99);
+     expect(ws.reopen()).toBe('aes');
+     expect(ws.active.value.input).toBe('aes fixture');
+     expect(ws.tabs.value).toHaveLength(100);
+   }finally{ws.dispose();}
  });
  it('metadata-only snapshots exclude payloads, private text options and files, including history',()=>{
    const w=newWorkspace(),t=newToolTab('aes');t.input='SECRET_BODY';t.secondaryInput='SECRET_SECOND';t.options.rawKey='SECRET_KEY';t.options.prefix='SECRET_PREFIX';t.fileName='SECRET_FILE';t.result={output:'SECRET_RESULT'};
