@@ -1,6 +1,6 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { getTool } from '../core/catalog';
-import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, OPEN_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT, SESSION_MAX_BYTES, builtInTemplates } from '../core/workspace';
+import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, historySafeTab, OPEN_LIMIT, HISTORY_LIMIT, TEMPLATE_LIMIT, SESSION_MAX_BYTES, builtInTemplates } from '../core/workspace';
 import type { ToolTab, HistoryEntry, SaveMode } from '../core/workspace';
 import type { ToolResult, ToolRequest } from '../core/types';
 import { useToolRunner } from './useToolRunner';
@@ -91,7 +91,7 @@ export function useWorkspace() {
     const t=state.value.tabs.find(t=>t.id===id);t?.batch.forEach(b=>{if(b.state==='running'){b.state='error';b.error='已取消';}});
   }
   function addHistory(tab:ToolTab,type:HistoryEntry['type']){
-    const entry:HistoryEntry={id:crypto.randomUUID(),at:Date.now(),type,tab:clone(tab)};
+    const entry:HistoryEntry={id:crypto.randomUUID(),at:Date.now(),type,tab:historySafeTab(tab)};
     entry.tab.batch=entry.tab.batch.map(b=>({...b,state:b.state==='running'?'waiting':b.state}));
     state.value.history.unshift(entry);state.value.history.splice(HISTORY_LIMIT);
   }
@@ -136,7 +136,7 @@ export function useWorkspace() {
   function removeTemplate(id:string){state.value.templates=state.value.templates.filter(t=>t.id!==id);}
   function clearActive(){
     const t=active.value;stop(t.id);t.input='';t.secondaryInput='';t.result=null;t.error='';t.stale=false;t.elapsed=0;t.outputView='text';t.fileName='';t.binarySourceName='';t.batch=[];t.batchVisible=false;
-    for(const k of ['key','password','rawKey','iv','aad'])if(k in t.options)t.options[k]='';
+    for(const k of ['key','password','rawKey','iv','aad','signature'])if(k in t.options)t.options[k]='';
   }
   function requestFor(t:ToolTab):ToolRequest{return{toolId:t.toolId,action:t.action,input:t.input,secondaryInput:t.secondaryInput,options:{...t.options}};}
   function runnerFor(id:string){let r=runners.get(id);if(!r){r=useToolRunner();runners.set(id,r);}return r;}

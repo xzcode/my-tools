@@ -9,6 +9,8 @@ import { processHash, processJwt, processRegex, processSql, processSqlIn, proces
 import { processConvert } from './convert-tools';
 import { processCurl } from './curl-parser';
 import { processAes, processPassword } from './crypto-tools';
+import { processKeygen, processKeyMatch, processKeyInspect, processSignature, processRsaOaep, processKeyAgreement } from './key-tools';
+import { processPacket } from './packet-tools';
 
 /** Run in a dedicated, disposable Worker. Regex and diff must not block the UI. */
 export async function executeTool(request: ToolRequest): Promise<ToolResult> {
@@ -45,6 +47,13 @@ export async function executeTool(request: ToolRequest): Promise<ToolResult> {
     case 'convert': result = processConvert(normalized); break;
     case 'curl': result = processCurl(normalized); break;
     case 'aes': result = await processAes(normalized); break;
+    case 'keygen': result = await processKeygen(normalized); break;
+    case 'key-match': result = await processKeyMatch(normalized); break;
+    case 'key-format': result = await processKeyInspect(normalized); break;
+    case 'signature': result = await processSignature(normalized); break;
+    case 'rsa-crypto': result = await processRsaOaep(normalized); break;
+    case 'key-agreement': result = await processKeyAgreement(normalized); break;
+    case 'packet-signing': result = processPacket(normalized); break;
     case 'phone': result = processPhone(normalized); break;
     case 'svga': result = { output: '请在 SVGA 文件预览界面打开本地动画文件。' }; break;
     case 'password': result = processPassword(normalized); break;

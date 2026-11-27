@@ -38,6 +38,11 @@ export function newWorkspace(): Workspace {
   const tab = newToolTab('json');
   return { version: 2, mode: 'config', fields: oldInitial().fields, tabs: [tab], activeIds: { json: tab.id }, history: [], templates: [] };
 }
+// Cryptography tool inputs and generated private material are deliberately never archived.
+export function privateKeyTool(id: string): boolean { return ['keygen','key-match','key-format','signature','rsa-crypto','key-agreement'].includes(id); }
+export function historySafeTab(tab: ToolTab): ToolTab {
+  return privateKeyTool(tab.toolId) ? { ...newToolTab(tab.toolId, tab.name, { ...toolDefaults(tab.toolId), ...safeOptions(tab.toolId,tab.options) }), id:tab.id, action:tab.action } : clone(tab);
+}
 export function duplicateTab(tab: ToolTab): ToolTab {
   return newToolTab(tab.toolId, (tab.name + ' 副本').slice(0,100), { ...toolDefaults(tab.toolId), ...safeOptions(tab.toolId, tab.options) });
 }
@@ -49,7 +54,7 @@ function optionField(key: string, toolId: string): SecretField {
   return 'input';
 }
 function projectTab(tab: ToolTab, state: Workspace): ToolTab {
-  const full = state.mode === 'full', f = state.fields;
+  const full = state.mode === 'full' && !privateKeyTool(tab.toolId), f = state.fields;
   const opts = safeOptions(tab.toolId, tab.options);
   if (full) for (const option of getTool(tab.toolId)!.options) {
     if ((option.type === 'text' || option.type === 'textarea') && f[optionField(option.key, tab.toolId)]) {

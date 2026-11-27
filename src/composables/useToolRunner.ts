@@ -49,7 +49,7 @@ export function useToolRunner() {
         finish();
         reject(new Error('工具处理进程异常，已安全停止。请重试或缩小输入。'));
       };
-      const timeout = request.toolId === 'regex' ? 2000 : request.toolId === 'aes' ? 30000 : 10000;
+      const timeout = request.toolId === 'regex' ? 2000 : request.toolId === 'aes' || request.toolId === 'keygen' ? 30000 : 10000;
       timer = setTimeout(() => {
         if (id !== currentId) return;
         cancel(request.toolId === 'regex'

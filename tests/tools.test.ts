@@ -13,6 +13,8 @@ describe('catalog and input guards', () => {
   it('every catalogue sample produces a usable result', async () => {
     expect(new Set(tools.map(tool => tool.id)).size).toBe(tools.length);
     for (const tool of tools) {
+      // Key operations require a real generated fixture, covered in key-tools.test.ts.
+      if (['key-match','key-format','signature','rsa-crypto','key-agreement'].includes(tool.id)) continue;
       const sampleOptions: Record<string, OptionValue> = tool.id === 'aes' ? { password: 'Test-only-example-password-2026!' } : {};
       const result = await run(tool.id, tool.sampleInput, tool.defaultAction, sampleOptions, tool.sampleSecondaryInput);
       expect(typeof result.output, tool.id).toBe('string');

@@ -1,4 +1,5 @@
 import { phoneCountries } from './phone';
+import { keyProfiles, signatureProfiles } from './key-tools';
 import type { OptionValue, ToolCategory, ToolDefinition, ToolOption } from './types';
 
 const select = (key: string, label: string, choices: [string, string][], defaultValue = choices[0]![0]): ToolOption => ({ key, label, type: 'select', defaultValue, choices: choices.map(([value, label]) => ({ value, label })) });
@@ -9,10 +10,23 @@ const actions = (...pairs: [string, string][]) => pairs.map(([id, label]) => ({ 
 
 export const categories: { id: ToolCategory; name: string }[] = [
   { id: 'data', name: '数据处理' }, { id: 'text', name: '文本工具' }, { id: 'encoding', name: '编码转换' },
-  { id: 'datetime', name: '日期与时间' }, { id: 'developer', name: '开发辅助' },
+  { id: 'datetime', name: '日期与时间' }, { id: 'developer', name: '开发辅助' }, { id: 'crypto', name: '密码学工具' },
 ];
 
+const profileChoices: [string,string][] = keyProfiles.map(value=>[value,value]);
+const signChoices: [string,string][] = signatureProfiles.map(value=>[value,value]);
+const dataChoices: [string,string][] = [['utf8','UTF-8'],['hex','Hex'],['base64','Base64']];
+const signatureEncodings: [string,string][] = [['base64','Base64'],['hex','Hex'],['base64url','Base64URL']];
+const keyProfile = () => select('profile','密钥算法 / 曲线',profileChoices,'RSA');
+
 export const tools: ToolDefinition[] = [
+  {id:'keygen',name:'密钥生成',description:'生成同一对公私钥的多种格式；命名并保存到本机目录。',category:'crypto',icon:'key',keywords:['rsa','ecdsa','ed25519','x25519','pkcs1','pkcs8','密钥生成'],inputLabel:'密钥名称',sampleInput:'my-project',options:[keyProfile(),select('bits','RSA 密钥长度',[['2048','2048 bit'],['3072','3072 bit'],['4096','4096 bit']]),check('pkcs1','额外生成 RSA PKCS1',true),check('pem','PEM',true),check('der','DER',false),check('base64','纯 Base64 DER',false)],actions:actions(['generate','生成密钥']),defaultAction:'generate',extension:'json'},
+  {id:'key-match',name:'密钥匹配',description:'从私钥提取公钥并比较指纹，验证公私钥配对。',category:'crypto',icon:'key',keywords:['key pair','密钥匹配','公私钥','验证'],inputLabel:'公钥',secondaryInputLabel:'私钥',sampleInput:'',options:[keyProfile()],actions:actions(['match','验证匹配']),defaultAction:'match',extension:'json'},
+  {id:'key-format',name:'密钥解析与转换',description:'解析未加密密钥、提取公钥、PKCS8/SPKI 与 RSA PKCS1 转换。',category:'crypto',icon:'key',keywords:['pkcs1','pkcs8','spki','pem','der','密钥格式','公钥提取','指纹'],inputLabel:'密钥 PEM 或 Base64 DER',sampleInput:'',options:[keyProfile(),select('role','输入密钥',[['private','私钥'],['public','公钥']]),select('format','输出结构',[['standard','PKCS8 / SPKI'],['pkcs1','RSA PKCS1']]),select('encoding','输出编码',[['pem','PEM'],['base64','Base64 DER'],['hex','Hex DER']])],actions:actions(['inspect','解析密钥'],['convert','格式转换'],['public','提取公钥']),defaultAction:'inspect',extension:'txt'},
+  {id:'signature',name:'数字签名与验签',description:'通用原文签名；RSA PKCS1/PSS、ECDSA 与 Ed25519。',category:'crypto',icon:'shield',keywords:['sign','verify','rsa2','sha256withrsa','签名','验签'],inputLabel:'原文 / 数据',secondaryInputLabel:'签名私钥 / 验签公钥',sampleInput:'hello My Tools',options:[select('algorithm','签名算法',signChoices),select('curve','ECDSA 曲线',[['P-256','P-256'],['P-384','P-384'],['P-521','P-521']]),number('saltLength','PSS Salt 字节数',32,0,512),select('dataEncoding','数据编码',dataChoices),select('signatureEncoding','签名编码',signatureEncodings),select('ecdsaFormat','ECDSA 签名格式',[['der','ASN.1 DER (Java/OpenSSL)'],['raw','IEEE P1363']]),{key:'signature',label:'待验证签名',type:'textarea',defaultValue:''}],actions:actions(['sign','生成签名'],['verify','验证签名']),defaultAction:'sign',extension:'txt'},
+  {id:'rsa-crypto',name:'RSA 加解密',description:'RSA-OAEP 标准非对称加解密，不隐式分块。',category:'crypto',icon:'lock',keywords:['rsa','oaep','公钥加密','私钥解密'],inputLabel:'明文 / 密文',secondaryInputLabel:'加密公钥 / 解密私钥',sampleInput:'hello My Tools',options:[select('hash','OAEP 摘要',[['SHA-256','SHA-256'],['SHA-384','SHA-384'],['SHA-512','SHA-512'],['SHA-1','SHA-1（兼容）']]),text('label','OAEP Label'),select('dataEncoding','明文编码',dataChoices),select('cipherEncoding','密文编码',signatureEncodings)],actions:actions(['encrypt','加密'],['decrypt','解密']),defaultAction:'encrypt',extension:'txt'},
+  {id:'key-agreement',name:'密钥协商',description:'ECDH / X25519 派生原始共享秘密。',category:'crypto',icon:'key',keywords:['ecdh','x25519','共享秘密','密钥协商'],inputLabel:'本方私钥',secondaryInputLabel:'对方公钥',sampleInput:'',options:[select('profile','协商算法',[['ECDH-P-256','ECDH P-256'],['ECDH-P-384','ECDH P-384'],['ECDH-P-521','ECDH P-521'],['X25519','X25519']]),select('encoding','输出编码',signatureEncodings)],actions:actions(['derive','计算共享秘密']),defaultAction:'derive',extension:'txt'},
+  {id:'packet-signing',name:'报文签名原文',description:'通用 Query/Form 参数排序、过滤、编码与拼接，不绑定支付平台。',category:'crypto',icon:'link',keywords:['query','form','canonicalization','报文','参数排序','待签名原文'],inputLabel:'key=value&key=value 报文',sampleInput:'name=test&amount=100&sign=example',options:[select('sort','参数排序',[['asc','键升序（Unicode 代码单元）'],['desc','键降序'],['none','保持原顺序']]),select('decoding','输入解码',[['raw','原样保留'],['percent','百分号解码'],['form','表单解码（+ 为空格）']]),text('exclude','排除字段（逗号分隔）','sign'),text('include','仅包含字段（可选）'),check('skipEmpty','忽略空值',false),select('duplicate','重复键',[['keep','保留'],['reject','拒绝']]),select('joinMode','拼接形式',[['pairs','key=value'],['values','仅 value']]),text('separator','分隔符','&'),select('outputEncoding','输出编码',[['raw','原样'],['percent','encodeURIComponent']])],actions:actions(['build','生成待签名原文']),defaultAction:'build',extension:'txt'},
   { id: 'json', name: 'JSON 工作台', description: '格式化、压缩与校验，保留大整数精度。', category: 'data', icon: 'braces', keywords: ['json', '格式化', '压缩', '校验', '树', '路径'],
     inputLabel: 'JSON 输入', sampleInput: '{"project":"My Tools","version":"0.1.0","offline":true,"tools":["JSON","Base64","字符串拼接"],"settings":{"theme":"system","saveContent":false}}',
     options: [select('indent', '缩进', [['2', '2 个空格'], ['4', '4 个空格'], ['tab', 'Tab']]), text('path', '提取路径', '$.settings.theme', '支持 $.key[0]、$["key.with.dot"] 或 JSON Pointer /key/0')],
@@ -35,7 +49,7 @@ export const tools: ToolDefinition[] = [
     options: [number('count', '生成数量', 5, 1, 1000), number('length', '随机字符串长度', 24, 1, 256), select('alphabet', '随机字符集', [['alphanumeric', '字母 + 数字'], ['hex', '十六进制'], ['password', '字母 + 数字 + 符号']]), check('uppercase', '大写', false), check('hyphens', 'UUID 保留连字符')],
     actions: actions(['uuid', '生成 UUID'], ['random', '生成随机字符串']), defaultAction: 'uuid', extension: 'txt' },
   { id: 'hash', name: '哈希与 HMAC', description: '计算 SHA-256 / SHA-512 摘要或带密钥的 HMAC。', category: 'developer', icon: 'hash', keywords: ['sha', 'sha256', 'sha512', 'hmac', '哈希', '摘要'], sampleInput: 'hello world',
-    options: [select('algorithm', '算法', [['SHA-256', 'SHA-256'], ['SHA-512', 'SHA-512']]), text('key', 'HMAC 密钥', '', '仅用于 HMAC，不保存在偏好设置中'), select('output', '输出格式', [['hex', '十六进制'], ['base64', 'Base64']])],
+    options: [select('algorithm', '算法', [['SHA-256', 'SHA-256'], ['SHA-512', 'SHA-512'], ['SHA-384', 'SHA-384'], ['SHA-1', 'SHA-1（兼容）']]), text('key', 'HMAC 密钥', '', '仅用于 HMAC，不保存在偏好设置中'), select('output', '输出格式', [['hex', '十六进制'], ['base64', 'Base64']])],
     actions: actions(['hash', '计算摘要'], ['hmac', '计算 HMAC']), defaultAction: 'hash', extension: 'txt', supportsBatch: true },
   { id: 'jwt', name: 'JWT 解析', description: '查看 Header、Payload 与声明时间；不验证签名。', category: 'developer', icon: 'key', keywords: ['jwt', 'token', '令牌'], sampleInput: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2pvIiwibmFtZSI6Ikpvam8iLCJpYXQiOjE3NjM2ODA4MDB9.demo',
     options: [], actions: actions(['decode', '解析 JWT']), defaultAction: 'decode', extension: 'json', supportsBatch: true },
