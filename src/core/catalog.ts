@@ -1,3 +1,4 @@
+import { cryptoTools } from './crypto-catalog';
 import { phoneCountries } from './phone';
 import type { OptionValue, ToolCategory, ToolDefinition, ToolOption } from './types';
 
@@ -9,7 +10,7 @@ const actions = (...pairs: [string, string][]) => pairs.map(([id, label]) => ({ 
 
 export const categories: { id: ToolCategory; name: string }[] = [
   { id: 'data', name: '数据处理' }, { id: 'text', name: '文本工具' }, { id: 'encoding', name: '编码转换' },
-  { id: 'datetime', name: '日期与时间' }, { id: 'developer', name: '开发辅助' },
+  { id: 'datetime', name: '日期与时间' }, { id: 'developer', name: '开发辅助' }, { id: 'crypto', name: '密码学工具' },
 ];
 
 export const tools: ToolDefinition[] = [
@@ -34,7 +35,7 @@ export const tools: ToolDefinition[] = [
   { id: 'uuid', name: 'UUID 与随机字符串', description: '使用系统加密随机源，批量生成 UUID v4 或随机文本。', category: 'developer', icon: 'fingerprint', keywords: ['uuid', 'random', '随机', '密码'], sampleInput: '',
     options: [number('count', '生成数量', 5, 1, 1000), number('length', '随机字符串长度', 24, 1, 256), select('alphabet', '随机字符集', [['alphanumeric', '字母 + 数字'], ['hex', '十六进制'], ['password', '字母 + 数字 + 符号']]), check('uppercase', '大写', false), check('hyphens', 'UUID 保留连字符')],
     actions: actions(['uuid', '生成 UUID'], ['random', '生成随机字符串']), defaultAction: 'uuid', extension: 'txt' },
-  { id: 'hash', name: '哈希与 HMAC', description: '计算 SHA-256 / SHA-512 摘要或带密钥的 HMAC。', category: 'developer', icon: 'hash', keywords: ['sha', 'sha256', 'sha512', 'hmac', '哈希', '摘要'], sampleInput: 'hello world',
+  { id: 'hash', name: '哈希与 HMAC', description: '计算 SHA-256 / SHA-512 摘要或带密钥的 HMAC。', category: 'crypto', icon: 'hash', keywords: ['sha', 'sha256', 'sha512', 'hmac', '哈希', '摘要'], sampleInput: 'hello world',
     options: [select('algorithm', '算法', [['SHA-256', 'SHA-256'], ['SHA-512', 'SHA-512']]), text('key', 'HMAC 密钥', '', '仅用于 HMAC，不保存在偏好设置中'), select('output', '输出格式', [['hex', '十六进制'], ['base64', 'Base64']])],
     actions: actions(['hash', '计算摘要'], ['hmac', '计算 HMAC']), defaultAction: 'hash', extension: 'txt', supportsBatch: true },
   { id: 'jwt', name: 'JWT 解析', description: '查看 Header、Payload 与声明时间；不验证签名。', category: 'developer', icon: 'key', keywords: ['jwt', 'token', '令牌'], sampleInput: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2pvIiwibmFtZSI6Ikpvam8iLCJpYXQiOjE3NjM2ODA4MDB9.demo',
@@ -56,7 +57,7 @@ export const tools: ToolDefinition[] = [
     actions: actions(['validate', '校验号码']), defaultAction: 'validate', extension: 'json', supportsBatch: true },
   { id: 'svga', name: 'SVGA 动画预览', description: '本地打开 SVGA 文件，离线播放、暂停、逐帧预览和查看动画属性。', category: 'developer', icon: 'film', keywords: ['svga', 'animation', '动画', '预览', '本地文件'],
     sampleInput: '', options: [], actions: actions(['preview', '预览']), defaultAction: 'preview', extension: 'svga' },
-  { id: 'aes', name: 'AES 加解密', description: '简单模式认证加密；高级模式支持 GCM/CBC 和 Java ECB/PKCS5Padding 兼容。', category: 'encoding', icon: 'lock', keywords: ['aes', 'gcm', 'cbc', 'ecb', 'java', 'pkcs5padding', 'pkcs7', 'key', 'iv', '加密', '解密', '口令', '密文'], sampleInput: '你好，My Tools 👋\n需要加密的私密文字',
+  { id: 'aes', name: 'AES 加解密', description: '简单模式认证加密；高级模式支持 GCM/CBC 和 Java ECB/PKCS5Padding 兼容。', category: 'crypto', icon: 'lock', keywords: ['aes', 'gcm', 'cbc', 'ecb', 'java', 'pkcs5padding', 'pkcs7', 'key', 'iv', '加密', '解密', '口令', '密文'], sampleInput: '你好，My Tools 👋\n需要加密的私密文字',
     options: [
       select('profile', 'AES 工作模式', [['simple', '简单模式 · 随机盐 / IV'], ['advanced', '高级模式 · 原始 Key / IV']]),
       text('prefix', '密文前缀', '', '加密后原样拼接；解密前精确匹配并移除一次，留空不处理'),
@@ -76,11 +77,12 @@ export const tools: ToolDefinition[] = [
       select('aadEncoding', 'AAD 编码', [['utf8', 'UTF-8'], ['hex', 'Hex'], ['base64', 'Base64']]),
     ],
     actions: actions(['encrypt', '加密'], ['decrypt', '解密']), defaultAction: 'encrypt', extension: 'txt' },
-  { id: 'password', name: '强密码生成器', description: '使用系统安全随机数，确保覆盖选中的字符类型。', category: 'developer', icon: 'shield', keywords: ['password', 'generator', '强密码', '安全', '随机'], sampleInput: '',
+  { id: 'password', name: '强密码生成器', description: '使用系统安全随机数，确保覆盖选中的字符类型。', category: 'crypto', icon: 'shield', keywords: ['password', 'generator', '强密码', '安全', '随机'], sampleInput: '',
     options: [number('length', '密码长度', 24, 12, 128), number('count', '生成数量', 1, 1, 50), check('lowercase', '小写字母'), check('uppercase', '大写字母'), check('digits', '数字'), check('symbols', '特殊符号'), check('excludeSimilar', '排除易混淆字符 O/0/I/l/1')],
     actions: actions(['generate', '生成密码']), defaultAction: 'generate', extension: 'txt' },
   { id: 'curl', name: 'cURL 解析', description: '将 cURL 请求整理为结构化数据；不发起网络请求。', category: 'developer', icon: 'terminal', keywords: ['curl', 'http', '请求', 'header'], sampleInput: "curl 'https://api.example.com/users?page=1' -H 'Accept: application/json' -H 'Authorization: Bearer example-token' --data-raw '{\"name\":\"Jojo\"}'",
     options: [], actions: actions(['parse', '解析请求']), defaultAction: 'parse', extension: 'json', supportsBatch: true },
+  ...cryptoTools,
 ];
 
 export function getTool(id: string): ToolDefinition | undefined { return tools.find(tool => tool.id === id); }

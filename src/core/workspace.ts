@@ -1,3 +1,4 @@
+import { isNativeCrypto } from './crypto-catalog';
 import { defaultOptions, getTool } from './catalog';
 import type { OptionValue, ToolResult } from './types';
 import { initialWorkspace as oldInitial, restoreWorkspace as restoreLegacy, configOptions as aesConfig, builtInTemplates } from './aes-workspace';
@@ -41,9 +42,9 @@ export function duplicateTab(tab: ToolTab): ToolTab {
   return newToolTab(tab.toolId, (tab.name + ' 副本').slice(0,100), { ...toolDefaults(tab.toolId), ...safeOptions(tab.toolId, tab.options) });
 }
 function optionField(key: string, toolId: string): SecretField {
-  if (['key','rawKey','password'].includes(key)) return 'key';
-  if (toolId === 'aes' && key === 'iv') return 'iv';
-  if (toolId === 'aes' && key === 'aad') return 'aad';
+  if (['key','rawKey','password','keyPassphrase','exportPassphrase'].includes(key)) return 'key';
+  if (['aes','symmetric'].includes(toolId) && key === 'iv') return 'iv';
+  if (['aes','symmetric'].includes(toolId) && key === 'aad') return 'aad';
   if (toolId === 'aes' && key === 'prefix') return 'prefix';
   return 'input';
 }
@@ -56,9 +57,11 @@ function projectTab(tab: ToolTab, state: Workspace): ToolTab {
       if (typeof value === 'string') opts[option.key] = value;
     }
   }
-  const payload = full && f.input, output = full && f.output;
+  const payload = full && f.input, output = full && f.output && (!['keygen','keyconvert','kdf'].includes(tab.toolId) || f.key);
+  const inputAllowed = payload && (!['keyconvert','kdf'].includes(tab.toolId) || f.key);
+  const secondaryAllowed = payload && (!isNativeCrypto(tab.toolId) || f.key);
   return { id: tab.id, toolId: tab.toolId, name: tab.name.slice(0,100), action: tab.action,
-    input: payload ? tab.input : '', secondaryInput: payload ? tab.secondaryInput : '',
+    input: inputAllowed ? tab.input : '', secondaryInput: secondaryAllowed ? tab.secondaryInput : '',
     options: opts, result: output && tab.result ? clone(tab.result) : null,
     error: '', stale: !!(output && tab.result) && (tab.stale || !f.input || !f.key || !f.iv || !f.aad || !f.prefix),
     elapsed: 0, outputView: 'text', fileName: payload ? tab.fileName : '',

@@ -1,4 +1,5 @@
 mod aes_workspace;
+mod crypto_tools;
 mod files;
 mod preferences;
 mod updater;
@@ -93,6 +94,16 @@ fn tool_name(id: &str) -> &str {
         "timestamp" => "时间戳转换",
         "uuid" => "UUID 与随机字符串",
         "aes" => "AES 加解密",
+        "keygen" => "密钥生成",
+        "keycheck" => "公私钥匹配",
+        "keyconvert" => "密钥格式转换",
+        "signature" => "数字签名与验签",
+        "asymmetric" => "非对称加解密",
+        "symmetric" => "对称加解密",
+        "crypto-hash" => "扩展哈希与 HMAC",
+        "kdf" => "密钥派生",
+        "certificate" => "证书工具",
+
         "password" => "强密码生成器",
         "hash" => "哈希与 HMAC",
         "jwt" => "JWT 解析",
@@ -340,6 +351,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _, event| {
@@ -468,6 +480,13 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            crypto_tools::crypto_execute,
+            crypto_tools::crypto_get_directory,
+            crypto_tools::crypto_choose_directory,
+            crypto_tools::crypto_save_keys,
+            crypto_tools::crypto_open_directory,
+            crypto_tools::crypto_list_keys,
+            crypto_tools::crypto_read_key,
             read_clipboard,
             write_clipboard,
             aes_workspace::load_aes_workspace,

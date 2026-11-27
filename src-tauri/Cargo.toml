@@ -1,6 +1,6 @@
 [package]
 name = "my-tools"
-version = "0.6.2"
+version = "0.7.0"
 description = "Offline developer toolbox"
 authors = ["Jojo"]
 license = "MIT"
@@ -19,6 +19,8 @@ updater = ["dep:tauri-plugin-updater"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+my-tools-crypto = { path = "crypto-core" }
+tauri-plugin-opener = "2"
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-dialog = "2"

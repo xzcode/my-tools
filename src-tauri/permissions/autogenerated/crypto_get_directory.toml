@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-crypto-get-directory"
+description = "Enables the crypto_get_directory command without any pre-configured scope."
+commands.allow = ["crypto_get_directory"]
+
+[[permission]]
+identifier = "deny-crypto-get-directory"
+description = "Denies the crypto_get_directory command without any pre-configured scope."
+commands.deny = ["crypto_get_directory"]

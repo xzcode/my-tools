@@ -1,0 +1,24 @@
+import { test, expect } from '@playwright/test';
+test('native crypto tools share tabs and display accurate options in browser preview',async({page})=>{
+  await page.goto('/#/tools/keygen');
+  await expect(page.locator('h1')).toHaveText('密钥生成');
+  await expect(page.getByLabel('默认密钥保存路径')).toBeVisible();
+  await page.getByLabel('密钥 / 文件夹名称').fill('project-key');
+  await expect(page.getByLabel('RSA 位数')).toHaveValue('2048');
+  await page.getByLabel('密钥算法').selectOption('SM2');
+  await expect(page.getByLabel('RSA 位数')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'修改目录',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'新建标签',exact:true}).click();
+  await expect(page.getByLabel('密钥 / 文件夹名称')).toHaveValue('');
+  await page.getByRole('tab',{name:'密钥生成 1',exact:true}).click();
+  await expect(page.getByLabel('密钥 / 文件夹名称')).toHaveValue('project-key');
+  await page.getByRole('button',{name:'数字签名与验签',exact:true}).click();
+  await expect(page.locator('h1')).toHaveText('数字签名与验签');
+  await page.getByLabel('签名算法').selectOption('RSA-SHA1');
+  await expect(page.getByLabel('SM2 用户 ID')).toHaveCount(0);
+  await page.getByLabel('签名算法').selectOption('SM2-SM3');
+  await expect(page.getByLabel('SM2 用户 ID')).toHaveValue('1234567812345678');
+  await page.getByLabel('报文处理方式').selectOption('json-response');
+  await expect(page.getByLabel('响应字段名（精确匹配）')).toBeVisible();
+  await expect(page.getByText('浏览器仅用于界面预览；密码学运算与密钥目录管理需在桌面安装版中使用。')).toBeVisible();
+});

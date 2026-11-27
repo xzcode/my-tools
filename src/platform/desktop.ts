@@ -291,7 +291,7 @@ export async function onPreferencesChanged(handler: (preferences: DesktopPrefere
 
 export async function getDesktopStatus(): Promise<DesktopStatus> {
   if (isDesktop()) return invoke<DesktopStatus>('get_desktop_status');
-  return { version: '0.6.2', platform: 'browser', shortcut: '', shortcutError: null, trayAvailable: false, updaterEnabled: false };
+  return { version: '0.7.0', platform: 'browser', shortcut: '', shortcutError: null, trayAvailable: false, updaterEnabled: false };
 }
 
 export async function checkForUpdates(): Promise<UpdateStatus> {

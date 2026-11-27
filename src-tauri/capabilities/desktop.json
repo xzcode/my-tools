@@ -30,6 +30,13 @@
     "allow-save-aes-workspace",
     "allow-clear-aes-workspace",
     "allow-enable-aes-workspace-exit-guard",
-    "allow-finish-aes-workspace-exit"
+    "allow-finish-aes-workspace-exit",
+    "allow-crypto-execute",
+    "allow-crypto-get-directory",
+    "allow-crypto-choose-directory",
+    "allow-crypto-save-keys",
+    "allow-crypto-open-directory",
+    "allow-crypto-list-keys",
+    "allow-crypto-read-key"
   ]
 }

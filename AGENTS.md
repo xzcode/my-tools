@@ -14,3 +14,5 @@ My Tools is a public, MIT-licensed, offline-first personal desktop toolbox built
 - Do not claim signing, notarization, native installation or update verification unless it actually happened.
 - Keep package, Cargo and Tauri versions synchronized, and commit lockfiles.
 - Do not put signing credentials or access tokens into source code, generated config, logs or documentation.
+
+- New native cryptography operations use src-tauri/crypto-core and narrowly scoped Tauri commands. Keep user-chosen key directories independent from session history; never overwrite named key directories automatically. No arbitrary workspace or key-count quotas. Signature validation does not establish business or payment validity.

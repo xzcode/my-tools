@@ -713,5 +713,539 @@
       "parse"
     ],
     "options": {}
+  },
+  "keygen": {
+    "actions": [
+      "generate"
+    ],
+    "options": {
+      "algorithm": {
+        "type": "select",
+        "values": [
+          "RSA",
+          "P-256",
+          "P-384",
+          "P-521",
+          "secp256k1",
+          "SM2",
+          "Ed25519",
+          "Ed448",
+          "X25519",
+          "X448",
+          "AES-128",
+          "AES-192",
+          "AES-256",
+          "SM4",
+          "ChaCha20",
+          "HMAC"
+        ]
+      },
+      "bits": {
+        "type": "number",
+        "min": 512,
+        "max": 9007199254740991
+      },
+      "randomBytes": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
+      "secretEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64"
+        ]
+      },
+      "privateFormat": {
+        "type": "select",
+        "values": [
+          "PKCS8",
+          "PKCS1",
+          "SEC1"
+        ]
+      },
+      "publicFormat": {
+        "type": "select",
+        "values": [
+          "SPKI",
+          "PKCS1"
+        ]
+      },
+      "fileEncoding": {
+        "type": "select",
+        "values": [
+          "PEM",
+          "DER"
+        ]
+      }
+    }
+  },
+  "keycheck": {
+    "actions": [
+      "match"
+    ],
+    "options": {
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "auto",
+          "base64",
+          "hex"
+        ]
+      }
+    }
+  },
+  "keyconvert": {
+    "actions": [
+      "convert",
+      "extract-public"
+    ],
+    "options": {
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "auto",
+          "base64",
+          "hex"
+        ]
+      },
+      "privateFormat": {
+        "type": "select",
+        "values": [
+          "PKCS8",
+          "PKCS1",
+          "SEC1"
+        ]
+      },
+      "publicFormat": {
+        "type": "select",
+        "values": [
+          "SPKI",
+          "PKCS1"
+        ]
+      },
+      "fileEncoding": {
+        "type": "select",
+        "values": [
+          "PEM",
+          "DER"
+        ]
+      }
+    }
+  },
+  "signature": {
+    "actions": [
+      "sign",
+      "verify"
+    ],
+    "options": {
+      "signatureAlgorithm": {
+        "type": "select",
+        "values": [
+          "RSA-SHA256",
+          "RSA-SHA1",
+          "RSA-SHA224",
+          "RSA-SHA384",
+          "RSA-SHA512",
+          "RSA-MD5",
+          "RSA-SHA384",
+          "RSA-SHA3-224",
+          "RSA-SHA3-256",
+          "RSA-SHA3-384",
+          "RSA-SHA3-512",
+          "RSA-PSS-SHA256",
+          "RSA-PSS-SHA384",
+          "RSA-PSS-SHA512",
+          "RSA-PSS-SHA224",
+          "RSA-PSS-SHA1",
+          "RSA-PSS-SHA3-224",
+          "RSA-PSS-SHA3-256",
+          "RSA-PSS-SHA3-384",
+          "RSA-PSS-SHA3-512",
+          "ECDSA-SHA256",
+          "ECDSA-SHA384",
+          "ECDSA-SHA512",
+          "Ed25519",
+          "Ed448",
+          "SM2-SM3"
+        ]
+      },
+      "dataEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "gbk",
+          "gb18030",
+          "ascii",
+          "utf16le",
+          "utf16be",
+          "hex",
+          "base64"
+        ]
+      },
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "auto",
+          "base64",
+          "hex"
+        ]
+      },
+      "signatureEncoding": {
+        "type": "select",
+        "values": [
+          "base64",
+          "hex"
+        ]
+      },
+      "messageMode": {
+        "type": "select",
+        "values": [
+          "raw",
+          "query",
+          "query-decoded",
+          "json-params",
+          "json-response"
+        ]
+      },
+      "sortFields": {
+        "type": "checkbox"
+      },
+      "skipEmpty": {
+        "type": "checkbox"
+      },
+      "mgfDigest": {
+        "type": "select",
+        "values": [
+          "SHA256",
+          "SHA384",
+          "SHA512",
+          "SHA224",
+          "SHA1",
+          "SHA3-224",
+          "SHA3-256",
+          "SHA3-384",
+          "SHA3-512"
+        ]
+      },
+      "saltLength": {
+        "type": "number",
+        "min": 0,
+        "max": 9007199254740991
+      },
+      "sm2IdEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      }
+    }
+  },
+  "asymmetric": {
+    "actions": [
+      "encrypt",
+      "decrypt"
+    ],
+    "options": {
+      "algorithm": {
+        "type": "select",
+        "values": [
+          "RSA-OAEP",
+          "RSA-PKCS1",
+          "SM2-ASN1"
+        ]
+      },
+      "dataEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      },
+      "outputEncoding": {
+        "type": "select",
+        "values": [
+          "base64",
+          "hex"
+        ]
+      },
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "auto",
+          "base64",
+          "hex"
+        ]
+      },
+      "oaepDigest": {
+        "type": "select",
+        "values": [
+          "SHA256",
+          "SHA384",
+          "SHA512",
+          "SHA224",
+          "SHA1",
+          "SHA3-224",
+          "SHA3-256",
+          "SHA3-384",
+          "SHA3-512"
+        ]
+      },
+      "mgfDigest": {
+        "type": "select",
+        "values": [
+          "SHA256",
+          "SHA384",
+          "SHA512",
+          "SHA224",
+          "SHA1",
+          "SHA3-224",
+          "SHA3-256",
+          "SHA3-384",
+          "SHA3-512"
+        ]
+      }
+    }
+  },
+  "symmetric": {
+    "actions": [
+      "encrypt",
+      "decrypt"
+    ],
+    "options": {
+      "algorithm": {
+        "type": "select",
+        "values": [
+          "AES-256-GCM",
+          "AES-128-GCM",
+          "AES-192-GCM",
+          "AES-128-CTR",
+          "AES-128-CFB",
+          "AES-128-OFB",
+          "AES-192-CTR",
+          "AES-192-CFB",
+          "AES-192-OFB",
+          "AES-256-CTR",
+          "AES-256-CFB",
+          "AES-256-OFB",
+          "SM4-ECB",
+          "SM4-CBC",
+          "SM4-CTR",
+          "SM4-CFB",
+          "SM4-OFB",
+          "3DES-ECB",
+          "3DES-CBC",
+          "ChaCha20",
+          "ChaCha20-Poly1305"
+        ]
+      },
+      "dataEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      },
+      "outputEncoding": {
+        "type": "select",
+        "values": [
+          "base64",
+          "hex"
+        ]
+      },
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64",
+          "utf8"
+        ]
+      },
+      "ivEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64",
+          "utf8"
+        ]
+      },
+      "padding": {
+        "type": "select",
+        "values": [
+          "pkcs7",
+          "none"
+        ]
+      },
+      "aadEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      }
+    }
+  },
+  "crypto-hash": {
+    "actions": [
+      "hash",
+      "hmac"
+    ],
+    "options": {
+      "algorithm": {
+        "type": "select",
+        "values": [
+          "SHA256",
+          "SHA384",
+          "SHA512",
+          "SHA224",
+          "SHA1",
+          "SHA3-224",
+          "SHA3-256",
+          "SHA3-384",
+          "SHA3-512",
+          "MD5",
+          "SM3",
+          "RIPEMD160",
+          "BLAKE2b512",
+          "BLAKE2s256"
+        ]
+      },
+      "dataEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      },
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      },
+      "outputEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64"
+        ]
+      }
+    }
+  },
+  "kdf": {
+    "actions": [
+      "derive"
+    ],
+    "options": {
+      "algorithm": {
+        "type": "select",
+        "values": [
+          "PBKDF2",
+          "HKDF",
+          "scrypt"
+        ]
+      },
+      "dataEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      },
+      "saltEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64",
+          "utf8"
+        ]
+      },
+      "derivedBytes": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
+      "digest": {
+        "type": "select",
+        "values": [
+          "SHA256",
+          "SHA384",
+          "SHA512",
+          "SHA224",
+          "SHA1",
+          "SHA3-224",
+          "SHA3-256",
+          "SHA3-384",
+          "SHA3-512"
+        ]
+      },
+      "infoEncoding": {
+        "type": "select",
+        "values": [
+          "utf8",
+          "hex",
+          "base64"
+        ]
+      },
+      "iterations": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
+      "scryptN": {
+        "type": "number",
+        "min": 2,
+        "max": 9007199254740991
+      },
+      "scryptR": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
+      "scryptP": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      },
+      "outputEncoding": {
+        "type": "select",
+        "values": [
+          "hex",
+          "base64"
+        ]
+      }
+    }
+  },
+  "certificate": {
+    "actions": [
+      "inspect",
+      "csr",
+      "self-sign"
+    ],
+    "options": {
+      "keyEncoding": {
+        "type": "select",
+        "values": [
+          "auto",
+          "base64",
+          "hex"
+        ]
+      },
+      "validDays": {
+        "type": "number",
+        "min": 1,
+        "max": 9007199254740991
+      }
+    }
   }
 }

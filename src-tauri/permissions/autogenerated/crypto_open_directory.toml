@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-crypto-open-directory"
+description = "Enables the crypto_open_directory command without any pre-configured scope."
+commands.allow = ["crypto_open_directory"]
+
+[[permission]]
+identifier = "deny-crypto-open-directory"
+description = "Denies the crypto_open_directory command without any pre-configured scope."
+commands.deny = ["crypto_open_directory"]

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isNativeCrypto } from '../src/core/crypto-catalog';
 import { executeTool } from '../src/core/engine';
 import { defaultOptions, getTool, tools } from '../src/core/catalog';
 import { decodeBase64Bytes, encodeBase64Bytes } from '../src/core/encoding';
@@ -13,6 +14,7 @@ describe('catalog and input guards', () => {
   it('every catalogue sample produces a usable result', async () => {
     expect(new Set(tools.map(tool => tool.id)).size).toBe(tools.length);
     for (const tool of tools) {
+      if (isNativeCrypto(tool.id)) continue; // Covered by the native crypto crate.
       const sampleOptions: Record<string, OptionValue> = tool.id === 'aes' ? { password: 'Test-only-example-password-2026!' } : {};
       const result = await run(tool.id, tool.sampleInput, tool.defaultAction, sampleOptions, tool.sampleSecondaryInput);
       expect(typeof result.output, tool.id).toBe('string');

@@ -9,8 +9,8 @@ import { prepareSvga, validateSvgaMetadata } from '../src/core/svga';
 import { modernSvga, legacySvga } from './fixtures/svga';
 
 describe('unified workspace',()=>{
- it('provides independent tabs for all twenty tools',()=>{
-   expect(tools).toHaveLength(20);
+ it('provides independent tabs for every registered tool',()=>{
+   expect(tools).toHaveLength(29);
    for(const tool of tools){const a=newToolTab(tool.id),b=newToolTab(tool.id);a.input='secret';expect(a.id).not.toBe(b.id);expect(b.input).toBe('');expect(b.options).toEqual(defaultOptions(tool));}
  });
  it('does not cap tab counts, templates or history and restores every record',()=>{

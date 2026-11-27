@@ -1,0 +1,34 @@
+import type { ToolDefinition, ToolOption } from './types';
+const select = (key:string,label:string,values:string[]|[string,string][],initial?:string):ToolOption=>{
+  const choices=values.map(v=>typeof v==='string'?{value:v,label:v}:{value:v[0],label:v[1]});
+  return {key,label,type:'select',choices,defaultValue:initial??choices[0]!.value};
+};
+const text=(key:string,label:string,initial='',description?:string):ToolOption=>({key,label,type:'text',defaultValue:initial,description});
+const number=(key:string,label:string,initial:number,min=1):ToolOption=>({key,label,type:'number',defaultValue:initial,min,max:Number.MAX_SAFE_INTEGER});
+const check=(key:string,label:string,initial:boolean):ToolOption=>({key,label,type:'checkbox',defaultValue:initial});
+const actions=(...pairs:[string,string][])=>pairs.map(([id,label])=>({id,label}));
+const digestValues=['SHA256','SHA384','SHA512','SHA224','SHA1','SHA3-224','SHA3-256','SHA3-384','SHA3-512','MD5','SM3','RIPEMD160','BLAKE2b512','BLAKE2s256'];
+const rsaDigests=['SHA256','SHA384','SHA512','SHA224','SHA1','SHA3-224','SHA3-256','SHA3-384','SHA3-512'];
+const signatureValues=['RSA-SHA256','RSA-SHA1','RSA-SHA224','RSA-SHA384','RSA-SHA512','RSA-MD5',...rsaDigests.filter(x=>x.startsWith('SHA3')).map(x=>'RSA-'+x),...rsaDigests.map(x=>'RSA-PSS-'+x),'ECDSA-SHA256','ECDSA-SHA384','ECDSA-SHA512','Ed25519','Ed448','SM2-SM3'];
+const encoding=()=>select('keyEncoding','密钥输入编码',[['auto','PEM / Base64 DER（自动）'],['base64','Base64 DER'],['hex','Hex DER']]);
+const pass=()=>text('keyPassphrase','私钥口令（可选）','','仅用于解锁已有加密私钥');
+const data=()=>select('dataEncoding','输入 / 明文编码',[['utf8','UTF-8'],['hex','Hex 字节'],['base64','Base64 字节']]);
+const charset=()=>select('dataEncoding','字符集 / 字节编码',[['utf8','UTF-8'],['gbk','GBK'],['gb18030','GB18030'],['ascii','ASCII'],['utf16le','UTF-16LE'],['utf16be','UTF-16BE'],['hex','Hex 字节'],['base64','Base64 字节']]);
+const output=()=>select('outputEncoding','输出编码',['base64','hex']);
+const formats=()=>[select('privateFormat','私钥格式',['PKCS8','PKCS1','SEC1']),select('publicFormat','公钥格式',['SPKI','PKCS1']),select('fileEncoding','文件格式',['PEM','DER']),text('exportPassphrase','导出私钥口令（可选）','','仅 PKCS8 支持口令保护；留空为普通私钥')];
+const keyName=()=>text('keyName','密钥 / 文件夹名称','','例如 payment-server-prod');
+const def=(id:string,name:string,description:string,icon:string,keywords:string[],options:ToolOption[],ops:[string,string][]):ToolDefinition=>({
+ id,name,description,category:'crypto',icon,keywords:[...keywords,name],sampleInput:'',options,actions:actions(...ops),defaultAction:ops[0]![0],extension:'json'
+});
+export const cryptoTools:ToolDefinition[]=[
+ def('keygen','密钥生成','在本地生成公私钥或随机密钥，并保存到命名文件夹。','key',['rsa','ecc','sm2','ed25519','生成密钥'],[keyName(),select('algorithm','密钥算法',['RSA','P-256','P-384','P-521','secp256k1','SM2','Ed25519','Ed448','X25519','X448','AES-128','AES-192','AES-256','SM4','ChaCha20','HMAC']),number('bits','RSA 位数',2048,512),number('randomBytes','随机密钥字节数',32),select('secretEncoding','随机密钥编码',['hex','base64']),...formats()],[['generate','生成密钥']]),
+ def('keycheck','公私钥匹配','比较公私钥或证书公钥是否对应，计算 SHA-256 公钥指纹。','key',['match','匹配','fingerprint'],[encoding(),pass()],[['match','匹配密钥']]),
+ def('keyconvert','密钥格式转换','PKCS1 / PKCS8 / SEC1 / SPKI，PEM 与 DER 转换，公钥提取。','arrows',['pkcs1','pkcs8','pem','der','spki','sec1','提取公钥'],[keyName(),encoding(),pass(),...formats()],[['convert','转换私钥及公钥'],['extract-public','提取 / 转换公钥']]),
+ def('signature','数字签名与验签','签名和验签，支持原始文本、文件、参数报文与 JSON 原始响应。','shield',['rsa-sha1','rsa2','sha1withrsa','sha256withrsa','ecdsa','ed25519','签名','验签','同步','异步'],[select('signatureAlgorithm','签名算法',signatureValues),charset(),encoding(),pass(),select('signatureEncoding','签名编码',['base64','hex']),select('messageMode','报文处理方式',[['raw','原始文本 / 文件字节'],['query','原始 key=value 参数'],['query-decoded','URL 表单解码后参数'],['json-params','JSON 字段拼接'],['json-response','同步 JSON 响应原文提取']]),check('sortFields','按字段名排序',true),check('skipEmpty','排除空字符串',true),text('excludeFields','排除字段（逗号分隔）','sign'),text('signatureField','签名字段名','sign'),text('responseField','响应字段名（精确匹配）'),text('kvSeparator','键值连接符','='),text('joinSeparator','字段连接符','&'),{...text('signature','签名（验签）'),type:'textarea'},select('mgfDigest','PSS MGF1 摘要',rsaDigests),number('saltLength','PSS Salt 字节数',32,0),text('sm2UserId','SM2 用户 ID','1234567812345678'),select('sm2IdEncoding','SM2 ID 编码',['utf8','hex','base64'])],[['sign','签名'],['verify','验签']]),
+ def('asymmetric','非对称加解密','RSA OAEP / PKCS1、SM2 ASN.1 密文；独立选择 MGF1 摘要。','lock',['rsa','oaep','sm2'],[select('algorithm','算法与填充',['RSA-OAEP','RSA-PKCS1','SM2-ASN1']),data(),output(),encoding(),pass(),select('oaepDigest','OAEP 摘要',rsaDigests),select('mgfDigest','MGF1 摘要',rsaDigests),text('oaepLabel','OAEP Label（UTF-8）')],[['encrypt','加密'],['decrypt','解密']]),
+ def('symmetric','对称加解密（高级）','AES CTR / CFB / OFB / GCM、SM4、3DES、ChaCha20 等。','lock',['sm4','chacha20','3des','aes'],[select('algorithm','算法与模式',['AES-256-GCM','AES-128-GCM','AES-192-GCM',...['128','192','256'].flatMap(b=>['CTR','CFB','OFB'].map(m=>'AES-'+b+'-'+m)),'SM4-ECB','SM4-CBC','SM4-CTR','SM4-CFB','SM4-OFB','3DES-ECB','3DES-CBC','ChaCha20','ChaCha20-Poly1305']),data(),output(),select('keyEncoding','Key 编码',['hex','base64','utf8']),text('rawKey','原始 Key'),select('ivEncoding','IV / Nonce 编码',['hex','base64','utf8']),text('iv','IV / Nonce'),select('padding','Padding',['pkcs7','none']),select('aadEncoding','AAD 编码',['utf8','hex','base64']),text('aad','AAD（可选）')],[['encrypt','加密'],['decrypt','解密']]),
+ def('crypto-hash','哈希与 HMAC（高级）','MD5、SHA-1、SHA-2、SHA-3、SM3、RIPEMD160、BLAKE2。','hash',['hash','hmac','md5','sm3','sha3'],[select('algorithm','摘要算法',digestValues),data(),select('keyEncoding','HMAC Key 编码',['utf8','hex','base64']),text('rawKey','HMAC 密钥'),select('outputEncoding','输出编码',['hex','base64'])],[['hash','计算摘要'],['hmac','计算 HMAC']]),
+ def('kdf','密钥派生','PBKDF2、HKDF 和 scrypt，使用自定义 Salt、成本参数及输出长度。','key',['pbkdf2','scrypt','kdf'],[select('algorithm','派生算法',['PBKDF2','HKDF','scrypt']),data(),select('saltEncoding','Salt 编码',['hex','base64','utf8']),text('salt','Salt'),number('derivedBytes','输出密钥字节数',32),select('digest','摘要算法',rsaDigests),text('info','HKDF Info'),select('infoEncoding','Info 编码',['utf8','hex','base64']),number('iterations','PBKDF2 迭代次数',600000),number('scryptN','scrypt N',16384,2),number('scryptR','scrypt r',8),number('scryptP','scrypt p',1),select('outputEncoding','输出编码',['hex','base64'])],[['derive','派生密钥']]),
+ def('certificate','证书工具','解析 X.509 证书、生成 CSR 和自签名证书；离线处理。','shield',['x509','证书','csr','pem'],[keyName(),encoding(),pass(),text('commonName','Common Name (CN)'),text('organization','Organization (O)'),text('organizationalUnit','Organizational Unit (OU)'),text('countryCode','Country (C)'),number('validDays','有效天数',365)],[['inspect','解析证书'],['csr','生成 CSR'],['self-sign','生成自签名证书']]),
+];
+export function isNativeCrypto(id:string):boolean{return cryptoTools.some(t=>t.id===id);}

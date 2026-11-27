@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-crypto-read-key"
+description = "Enables the crypto_read_key command without any pre-configured scope."
+commands.allow = ["crypto_read_key"]
+
+[[permission]]
+identifier = "deny-crypto-read-key"
+description = "Denies the crypto_read_key command without any pre-configured scope."
+commands.deny = ["crypto_read_key"]

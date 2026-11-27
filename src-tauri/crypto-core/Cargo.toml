@@ -1,0 +1,17 @@
+[package]
+name = "my-tools-crypto"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.90"
+
+[dependencies]
+openssl = { version = "0.10.82", features = ["vendored"] }
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+encoding_rs = "0.8"
+openssl-sys = "0.9"
+foreign-types = "0.3"
+
+tempfile = "3"

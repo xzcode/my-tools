@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-crypto-execute"
+description = "Enables the crypto_execute command without any pre-configured scope."
+commands.allow = ["crypto_execute"]
+
+[[permission]]
+identifier = "deny-crypto-execute"
+description = "Denies the crypto_execute command without any pre-configured scope."
+commands.deny = ["crypto_execute"]

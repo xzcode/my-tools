@@ -1,4 +1,6 @@
 import { computed, nextTick, ref, watch } from 'vue';
+import { isNativeCrypto } from '../core/crypto-catalog';
+import { executeCrypto } from '../platform/crypto-tools';
 import { getTool } from '../core/catalog';
 import { newWorkspace, newToolTab, duplicateTab, clone, toolDefaults, safeOptions, tabName, snapshotWorkspace, restoreUnifiedWorkspace, historyBefore, builtInTemplates } from '../core/workspace';
 import type { ToolTab, HistoryEntry, SaveMode } from '../core/workspace';
@@ -135,7 +137,7 @@ export function useWorkspace() {
   function removeTemplate(id:string){state.value.templates=state.value.templates.filter(t=>t.id!==id);}
   function clearActive(){
     const t=active.value;stop(t.id);t.input='';t.secondaryInput='';t.result=null;t.error='';t.stale=false;t.elapsed=0;t.outputView='text';t.fileName='';t.binarySourceName='';t.batch=[];t.batchVisible=false;
-    for(const k of ['key','password','rawKey','iv','aad'])if(k in t.options)t.options[k]='';
+    for(const k of ['key','password','rawKey','iv','aad','keyPassphrase','exportPassphrase','signature'])if(k in t.options)t.options[k]='';
   }
   function requestFor(t:ToolTab):ToolRequest{return{toolId:t.toolId,action:t.action,input:t.input,secondaryInput:t.secondaryInput,options:{...t.options}};}
   function runnerFor(id:string){let r=runners.get(id);if(!r){r=useToolRunner();runners.set(id,r);}return r;}
@@ -147,7 +149,7 @@ export function useWorkspace() {
     const req=requestFor(t);
     const before=clone(t),token=begin(t),start=performance.now();t.error='';if(t.result)t.stale=true;
     try{
-      const result=await runnerFor(t.id).run(req);if(!live(t,token))return;
+      const result=await (isNativeCrypto(t.toolId)?executeCrypto(req):runnerFor(t.id).run(req));if(!live(t,token))return;
       t.result=result;t.stale=JSON.stringify(req)!==JSON.stringify(requestFor(t));t.elapsed=Math.max(1,Math.round(performance.now()-start));t.outputView=result.diff?'diff':'text';
       addHistory({...before,result,stale:false,error:'',elapsed:t.elapsed,outputView:t.outputView},'run');
     }catch(e){if(live(t,token))t.error=e instanceof Error?e.message:String(e);}

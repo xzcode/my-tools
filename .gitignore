@@ -12,3 +12,5 @@ playwright-report/
 *.log
 artifacts/
 src-tauri/tauri.updater.generated.json
+
+src-tauri/crypto-core/target/

@@ -3,6 +3,13 @@ fn main() {
     println!("cargo:rerun-if-env-changed=MY_TOOLS_UPDATE_PUBKEY");
     let attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+            "crypto_execute",
+            "crypto_get_directory",
+            "crypto_choose_directory",
+            "crypto_save_keys",
+            "crypto_open_directory",
+            "crypto_list_keys",
+            "crypto_read_key",
             "read_clipboard",
             "write_clipboard",
             "open_text_files",

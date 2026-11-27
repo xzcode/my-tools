@@ -1,9 +1,18 @@
 # My Tools · M1–M5 与后续增量交接
 
-日期：2026-11-27（Asia/Kuala_Lumpur）。**当前版本：0.6.2（新安装包待三平台构建确认）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
+日期：2026-11-27（Asia/Kuala_Lumpur）。**当前开发版本：0.7.0（M8 第一批，安装包待确认）**；首版为 0.1.0。仓库：`xzcode/my-tools`，默认分支 `master`。
 
 
 
+
+## v0.7.0 · 通用密码学工具（M8 第一批）
+
+- 新增 9 个原生工具：密钥生成、匹配、格式转换、公钥提取（转换工具操作）、数字签名/验签、非对称加解密、对称加解密（高级）、哈希与 HMAC（高级）、密钥派生、证书工具。总工具数 29；旧工具和 v0.6.2 的资源管理原则保留。
+- 核心独立 crate：src-tauri/crypto-core。OpenSSL 通过 vendored 构建；原生接口 src-tauri/src/crypto_tools.rs。通用 UI 为 CryptoWorkbench.vue，接入原有工作台和保存投影。浏览器预览不模拟真实原生运算。
+- 密钥命名目录保存、独立持久化默认目录、同名不覆盖、当前目录的密钥文件枚举和导入。未实现密钥组重命名/删除；用户仍可在系统文件管理器操作。
+- RSA-SHA1、RSA-SHA256 由独立 Node crypto 后端验签，SM2-SM3 使用明确的用户 ID 与外部 OpenSSL 验签；系统 OpenSSL 拒绝 SHA1 的策略未修改。
+- 待扩展：JWK、OpenSSH、PKCS12/JKS、SM2 C1C3C2/C1C2C3、DES/SM4-GCM/XChaCha20、BLAKE3/CRC32、Argon2id、证书链与 SAN 等。自签名证书不是 CA 信任链验证。
+- 东京服务器工作目录 /app/agent/my-tools-m6-20261127/m7；前置 v0.6.2 本地提交 b292208 未推送。三平台 Tauri 原生集成/安装包尚未验收；不要把浏览器验收或独立 Rust 核心测试写成桌面安装验收。
 
 ## v0.6.2 · 用户自行管理资源
 

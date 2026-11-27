@@ -1,4 +1,4 @@
-export type ToolCategory = 'data' | 'text' | 'encoding' | 'datetime' | 'developer';
+export type ToolCategory = 'data' | 'text' | 'encoding' | 'datetime' | 'developer' | 'crypto';
 export type OptionValue = string | number | boolean;
 export interface ToolOption {
   key: string;
