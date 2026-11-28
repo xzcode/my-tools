@@ -9,7 +9,17 @@
 
 - 仓库更名为 xzcode/toolbox-ex，英文 README 默认展示，简体中文 README.zh-CN.md 可切换。窗口、托盘、设置页、示例、安装包产品名称与发布草稿标题统一为 Toolbox EX。
 - 保留原应用标识 io.xzcode.mytools、内部 Rust 包/IPC 及存档格式、浏览器存储键和 AES 密文标识；显式配置的密钥目录不变，旧默认密钥目录存在时继续使用。新默认目录为 Toolbox EX/Keys。旧安装包名称保留真实历史证据。
-- v0.7.1 Actions #46003021261 三平台原生测试与安装包全部成功；v0.7.2 需独立确认构建和安装。仓库已更名，本轮开发未能连接东京服务器，直接通过 GitHub 完成提交。
+- v0.7.1 Actions #46003021261 三平台原生测试与安装包全部成功。仓库更名时东京服务器连接超时，v0.7.2 源码直接通过 GitHub 提交。
+- 2026-11-28 复核：[Desktop builds #46007945243](https://github.com/xzcode/toolbox-ex/actions/runs/46007945243) 结论 success；源码提交 99fe50ac10c846889e5468f4e92faebd0ec82250。105 项前端核心测试、20 项 Rust 密码学/Java 互通测试、23 项浏览器验收通过；macOS、Windows、Linux 分别通过 14 项原生测试，包括本地完整存档及偏好设置往返。三端安装包、校验文件及截图已上传到草稿 Release 460640687（build-v0.7.2-46007945243-1）。
+- 草稿标题 Toolbox EX 0.7.2 · ready to install，入口：[Releases](https://github.com/xzcode/toolbox-ex/releases)。实际附件：
+
+| 平台 | 安装包 | 字节数 |
+| --- | --- | ---: |
+| macOS ARM64 | Toolbox.EX_0.7.2_aarch64.dmg | 6,503,578 |
+| Windows x64 | Toolbox.EX_0.7.2_x64-setup.exe | 5,581,047 |
+| Linux x64 | Toolbox.EX_0.7.2_amd64.deb | 7,215,448 |
+
+- 构建验收完成，草稿尚未公开发布。未在真实用户设备上验证从 My Tools 覆盖安装；保留旧应用标识及存档兼容机制不等同于已经完成升级实机验收。
 
 ## v0.7.1 · 完整保存、右侧历史栏、多主题
 
